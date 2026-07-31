@@ -12,9 +12,9 @@ permissions:
 jobs:
   # ---------------------------------------------------------------------
   # T0/T1 gates that are REAL for Sprint 1 (ADR-010 / charter §20, C-04):
-  # format, lint, type-check, unit tests, dependency scan, AI-authorship
-  # trailer check. These run on every PR and must be required status
-  # checks in branch protection.
+  # format, lint, type-check, unit tests, dependency scan (fail-closed),
+  # secret scan, AI-authorship trailer check (PR events only). These must
+  # be required status checks once branch protection can be enabled.
   # ---------------------------------------------------------------------
 
   lint-type-unit:
@@ -59,11 +59,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: pip-audit
+      - name: pip-audit (fail-closed — no bypass)
         run: |
+          pip install --upgrade pip
           pip install pip-audit
           pip install -e ".[dev]"
-          pip-audit || true  # non-blocking until a real dependency surface exists (Epic E2+)
+          pip-audit
 
   secret-scan:
     name: secret-scan
@@ -77,43 +78,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  evidence-manifest-completeness:
-    name: evidence-manifest-completeness
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Placeholder completeness check
-        run: |
-          echo "TS-15 (Epic E6) will replace this with a real release_evidence"
-          echo "manifest completeness check. Until then this job intentionally"
-          echo "does nothing beyond confirming the workflow step itself runs,"
-          echo "and is NOT reported as evidence-manifest generation evidence."
-          echo "See docs/adr/README.md and CHARTER_REFERENCE.md §20/§29 (TS-15)."
-
-  # ---------------------------------------------------------------------
-  # Reconciliation-invariant tests: real once packages/reconciliation
-  # (Epic E5) exists. Scaffolded now as a job that legitimately no-ops
-  # (no fixtures to run yet) rather than faking a pass against nothing.
-  # ---------------------------------------------------------------------
-  reconciliation-invariant-tests:
-    name: reconciliation-invariant-tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: No reconciliation fixtures yet (Epic E5 not started)
-        run: |
-          echo "No reconciliation engine or fixtures exist yet (Epic E5, ADR-002)."
-          echo "This job will run the real reconciliation-invariant suite once"
-          echo "packages/reconciliation lands. Currently a documented no-op, not a"
-          echo "placeholder pass claimed as evidence."
-
   # ---------------------------------------------------------------------
   # DISABLED gates — defined per ADR-010/charter §20 so the pipeline shape
   # is visible, but explicitly NOT enabled. A disabled job must never be
-  # reported as passing evidence (owner's explicit instruction). Each is
-  # gated behind `if: false` with the reason and the enabling condition
-  # stated in a comment.
+  # reported as passing evidence (owner's explicit instruction, and Fizz's
+  # independent E1 review finding: a "success" no-op step still renders as
+  # a green check, which is indistinguishable from a real pass — so these
+  # two are now `if: false` like the others, not a job that runs and
+  # trivially succeeds). Each is gated with the reason and the enabling
+  # condition stated in a comment.
   # ---------------------------------------------------------------------
+
+  evidence-manifest-completeness-DISABLED:
+    name: evidence-manifest-completeness (disabled)
+    runs-on: ubuntu-latest
+    if: false # Enable once TS-15 (Epic E6) implements a real release_evidence manifest + completeness check. See docs/adr/README.md and CHARTER_REFERENCE.md §20/§29.
+    steps:
+      - run: echo "disabled"
+
+  reconciliation-invariant-tests-DISABLED:
+    name: reconciliation-invariant-tests (disabled)
+    runs-on: ubuntu-latest
+    if: false # Enable once packages/reconciliation (Epic E5, ADR-002) has real fixtures to run against.
+    steps:
+      - run: echo "disabled"
 
   llm-evaluation-DISABLED:
     name: llm-evaluation (disabled)
