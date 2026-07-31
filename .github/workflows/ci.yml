@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------
+  # T0/T1 gates that are REAL for Sprint 1 (ADR-010 / charter §20, C-04):
+  # format, lint, type-check, unit tests, dependency scan, AI-authorship
+  # trailer check. These run on every PR and must be required status
+  # checks in branch protection.
+  # ---------------------------------------------------------------------
+
+  lint-type-unit:
+    name: lint-type-unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dev dependencies
+        run: pip install -e ".[dev]"
+      - name: ruff (lint + format check)
+        run: ruff check . && ruff format --check .
+      - name: mypy (type check)
+        run: mypy
+      - name: pytest (unit tests)
+        run: pytest -q
+
+  ai-authorship-trailer-check:
+    name: ai-authorship-trailer-check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check Generated-by / Co-authored-by / Signed-off-by trailers
+        run: |
+          python scripts/check_ai_trailer.py origin/${{ github.base_ref }} HEAD
+
+  dependency-scan:
+    name: dependency-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip-audit
+        run: |
+          pip install pip-audit
+          pip install -e ".[dev]"
+          pip-audit || true  # non-blocking until a real dependency surface exists (Epic E2+)
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  evidence-manifest-completeness:
+    name: evidence-manifest-completeness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Placeholder completeness check
+        run: |
+          echo "TS-15 (Epic E6) will replace this with a real release_evidence"
+          echo "manifest completeness check. Until then this job intentionally"
+          echo "does nothing beyond confirming the workflow step itself runs,"
+          echo "and is NOT reported as evidence-manifest generation evidence."
+          echo "See docs/adr/README.md and CHARTER_REFERENCE.md §20/§29 (TS-15)."
+
+  # ---------------------------------------------------------------------
+  # Reconciliation-invariant tests: real once packages/reconciliation
+  # (Epic E5) exists. Scaffolded now as a job that legitimately no-ops
+  # (no fixtures to run yet) rather than faking a pass against nothing.
+  # ---------------------------------------------------------------------
+  reconciliation-invariant-tests:
+    name: reconciliation-invariant-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No reconciliation fixtures yet (Epic E5 not started)
+        run: |
+          echo "No reconciliation engine or fixtures exist yet (Epic E5, ADR-002)."
+          echo "This job will run the real reconciliation-invariant suite once"
+          echo "packages/reconciliation lands. Currently a documented no-op, not a"
+          echo "placeholder pass claimed as evidence."
+
+  # ---------------------------------------------------------------------
+  # DISABLED gates — defined per ADR-010/charter §20 so the pipeline shape
+  # is visible, but explicitly NOT enabled. A disabled job must never be
+  # reported as passing evidence (owner's explicit instruction). Each is
+  # gated behind `if: false` with the reason and the enabling condition
+  # stated in a comment.
+  # ---------------------------------------------------------------------
+
+  llm-evaluation-DISABLED:
+    name: llm-evaluation (disabled)
+    runs-on: ubuntu-latest
+    if: false # Enable only once the constrained LLM workflow (ADR-004/007) is implemented (post-Sprint-1). Never report this as passing while disabled.
+    steps:
+      - run: echo "disabled"
+
+  playwright-e2e-DISABLED:
+    name: playwright-e2e-action-safety (disabled)
+    runs-on: ubuntu-latest
+    if: false # Enable only once packages/executor (ADR-011) and the mock legacy app exist. Playwright evidence proves the executor pattern only — never UiPath/cloud proof (charter C-03/SC-01).
+    steps:
+      - run: echo "disabled"
+
+  cloud-terraform-DISABLED:
+    name: cloud-terraform-plan (disabled)
+    runs-on: ubuntu-latest
+    if: false # Enable only if/when the optional cloud reference path (ADR-008 §22) is owner-approved. No cloud credential exists in this repo's secrets today.
+    steps:
+      - run: echo "disabled"
+
+  uipath-DISABLED:
+    name: uipath-integration (disabled)
+    runs-on: ubuntu-latest
+    if: false # Post-MVP only, pending a vendor quote (ADR-011). Must never run in Sprint 1.
+    steps:
+      - run: echo "disabled"

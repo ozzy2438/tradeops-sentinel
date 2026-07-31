@@ -1,0 +1,28 @@
+# CODEOWNERS — path-scoped review requirements (ADR-009)
+#
+# KNOWN LIMITATION (flagged in the Epic E1 progress report, not silently
+# assumed): at repository-creation time, @ozzy2438 is the only real GitHub
+# identity on this project. The target design in ADR-009 assigns each path to
+# the workstream owner (Honey/Bumble/Scout/Fizz/Orchestrator), but those are
+# Buzz-platform agent roles, not distinct GitHub accounts today. Until real
+# GitHub identities exist for each workstream owner, every path below is
+# reviewed by @ozzy2438, and the "2 independent reviewers on high-risk paths"
+# requirement from ADR-009/the charter is NOT currently enforceable by
+# GitHub branch protection (a single-collaborator repo cannot satisfy an
+# N>1-reviewer rule without deadlocking every PR). See the Epic E1 report for
+# how this is currently configured (required reviews = 1, not enforced for
+# admins) versus the target state once a second real reviewer is added.
+#
+# Target path ownership (for when additional GitHub identities exist):
+#   apps/app/                -> Honey (application/agent code) + Bumble (platform)
+#   packages/contracts/      -> Honey (canonical model) + Bumble (physical/DDL)
+#   packages/generator/      -> Scout
+#   packages/reconciliation/ -> Honey + Bumble; Fizz independent oracle review
+#   packages/evidence/       -> Bumble (storage/roles) + Fizz (verifier/hash-chain)
+#   packages/executor/       -> Bumble
+#   infra/                   -> Bumble
+#   docs/adr/                -> Orchestrator + owner
+#   tests/                   -> Fizz (assurance) + relevant package owner
+#   .github/                 -> Bumble
+
+* @ozzy2438
