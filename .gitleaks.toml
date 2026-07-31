@@ -1,0 +1,18 @@
+title = "TradeOps Sentinel gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known false positives — reviewed, not real secrets"
+
+# docs/CHARTER_REFERENCE.md and docs/adr/*.md contain long, underscore-joined
+# ALL_CAPS state-machine enum chains (e.g. the canonical ACTION_* lifecycle).
+# Their entropy trips the generic-api-key heuristic; they are documentation
+# text copied verbatim from the approved MVP Release Charter and ADRs, not
+# credentials. Reviewed 2026-07-31 (Epic E1 / TS-1) — see the gitleaks job
+# run on the initial commit for the specific match this rule addresses.
+paths = [
+  '''docs/CHARTER_REFERENCE\.md''',
+  '''docs/adr/.*\.md''',
+]
