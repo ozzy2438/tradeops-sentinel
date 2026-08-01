@@ -26,7 +26,12 @@ COMPLIANT_TRAILERS = (
 
 
 def _run_git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+    result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise AssertionError(
+            f"git {' '.join(args)} failed (exit {result.returncode})\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
 
 
 def _commit(repo: Path, filename: str, message: str) -> None:
@@ -98,13 +103,16 @@ def test_mixed_range_reports_only_the_noncompliant_commit(git_repo: Path) -> Non
     """A range with one good and one bad commit must fail, naming the bad one only."""
     _run_git(git_repo, "checkout", "-q", "-b", "feature")
     _commit(git_repo, "good.txt", "fix: compliant commit\n\n" + COMPLIANT_TRAILERS)
+    good_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=git_repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    _commit(git_repo, "bad.txt", "fix: non-compliant commit")
     bad_sha = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=git_repo, check=True, capture_output=True, text=True
-    )
-    _commit(git_repo, "bad.txt", "fix: non-compliant commit")
+    ).stdout.strip()
 
     result = _run_check(git_repo, "main", "feature")
 
     assert result.returncode == 1
-    assert bad_sha.stdout.strip()[:12] not in result.stdout
-    assert "missing Generated-by, Co-authored-by, Signed-off-by" in result.stdout
+    assert good_sha[:12] not in result.stdout
+    assert f"{bad_sha[:12]}: missing Generated-by, Co-authored-by, Signed-off-by" in result.stdout
