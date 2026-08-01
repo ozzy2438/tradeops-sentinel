@@ -15,6 +15,7 @@
   "linkage_decision_id": "linkage_spot_001",
   "state": {
     "product_type": "FX_SPOT",
+    "settlement_rule_version": "1.0.0",
     "base_currency": "EUR",
     "terms_currency": "USD",
     "side": "BUY_BASE",
@@ -42,6 +43,9 @@
   "field_provenance": {
     "product_type": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -54,8 +58,28 @@
       "ingested_at": "2026-07-31T09:30:02Z",
       "conflict_status": "SELECTED"
     },
+    "settlement_rule_version": {
+      "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
+      "source_observation_id": "obs_execution_spot_001",
+      "source_observation_entity_version": 1,
+      "source_version": "1",
+      "field_path": "/payload/settlement_rule_version",
+      "normalisation_rule_id": "norm_version",
+      "normalisation_rule_version": "1.0.0",
+      "resolution_rule_version": "1.0.0",
+      "observed_at": "2026-07-31T09:30:00Z",
+      "effective_at": "2026-07-31T09:30:00Z",
+      "ingested_at": "2026-07-31T09:30:02Z",
+      "conflict_status": "SELECTED"
+    },
     "base_currency": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -70,6 +94,9 @@
     },
     "terms_currency": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -84,6 +111,9 @@
     },
     "side": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -98,6 +128,9 @@
     },
     "base_amount": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -112,6 +145,9 @@
     },
     "terms_amount": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -126,6 +162,9 @@
     },
     "quoted_rate": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -140,6 +179,9 @@
     },
     "trade_date": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -154,6 +196,9 @@
     },
     "value_date": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -168,6 +213,9 @@
     },
     "lifecycle_status": {
       "source_type": "CONFIRMATION",
+      "source_system": "FPML_CONFIRMATION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_confirmation_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -182,6 +230,9 @@
     },
     "counterparty_id": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",
@@ -196,6 +247,9 @@
     },
     "book_id": {
       "source_type": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
       "source_observation_id": "obs_execution_spot_001",
       "source_observation_entity_version": 1,
       "source_version": "1",

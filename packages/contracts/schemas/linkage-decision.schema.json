@@ -3,6 +3,40 @@
   "$id": "linkage-decision.schema.json",
   "title": "Deterministic trade-linkage decision",
   "description": "A versioned accepted, rejected, unmatched or ambiguous linkage decision. Candidate links never become authority without an explicit decision.",
+  "$defs": {
+    "candidateLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trade_id",
+        "tenant_id",
+        "portfolio_id",
+        "match_key",
+        "match_rule_version",
+        "evidence_hash"
+      ],
+      "properties": {
+        "trade_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "tenant_id": {
+          "$ref": "common.schema.json#/$defs/tenantId"
+        },
+        "portfolio_id": {
+          "$ref": "common.schema.json#/$defs/portfolioId"
+        },
+        "match_key": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "match_rule_version": {
+          "$ref": "common.schema.json#/$defs/semanticVersion"
+        },
+        "evidence_hash": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    }
+  },
   "type": "object",
   "required": [
     "schema_version",
@@ -68,36 +102,7 @@
     "candidate_links": {
       "type": "array",
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "trade_id",
-          "tenant_id",
-          "portfolio_id",
-          "match_key",
-          "match_rule_version",
-          "evidence_hash"
-        ],
-        "properties": {
-          "trade_id": {
-            "$ref": "common.schema.json#/$defs/identifier"
-          },
-          "tenant_id": {
-            "$ref": "common.schema.json#/$defs/tenantId"
-          },
-          "portfolio_id": {
-            "$ref": "common.schema.json#/$defs/portfolioId"
-          },
-          "match_key": {
-            "$ref": "common.schema.json#/$defs/identifier"
-          },
-          "match_rule_version": {
-            "$ref": "common.schema.json#/$defs/semanticVersion"
-          },
-          "evidence_hash": {
-            "$ref": "common.schema.json#/$defs/sha256"
-          }
-        }
+        "$ref": "#/$defs/candidateLink"
       }
     },
     "chosen_trade_id": {
@@ -156,6 +161,49 @@
           }
         }
       }
+    },
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "decision": {"const": "ACCEPTED"},
+            "reason_code": {"const": "EXACT_DETERMINISTIC_KEY"},
+            "candidate_links": {"minItems": 1, "maxItems": 1},
+            "chosen_trade_id": {"type": "string"}
+          }
+        },
+        {
+          "properties": {
+            "decision": {"const": "REJECTED"},
+            "reason_code": {"const": "HUMAN_REJECTED"},
+            "chosen_trade_id": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "decision": {"const": "UNMATCHED"},
+            "reason_code": {"const": "NO_ELIGIBLE_CANDIDATE"},
+            "candidate_links": {"maxItems": 0},
+            "chosen_trade_id": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "decision": {"const": "AMBIGUOUS"},
+            "reason_code": {"const": "MULTIPLE_ELIGIBLE_CANDIDATES"},
+            "candidate_links": {"minItems": 2},
+            "chosen_trade_id": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "decision": {"const": "CROSS_SCOPE_REJECTED"},
+            "reason_code": {"const": "TENANT_OR_PORTFOLIO_SCOPE_MISMATCH"},
+            "candidate_links": {"minItems": 1},
+            "chosen_trade_id": {"type": "null"}
+          }
+        }
+      ]
     }
   ],
   "additionalProperties": false

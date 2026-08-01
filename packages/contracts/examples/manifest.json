@@ -5,15 +5,91 @@
     "confirmation-spot.json": "confirmation-observation",
     "booking-forward.json": "booking-observation",
     "canonical-trade-spot.json": "canonical-trade",
+    "canonical-trade-forward.json": "canonical-trade",
     "canonical-trade-state-spot.json": "canonical-trade-state",
+    "canonical-trade-state-forward.json": "canonical-trade-state",
     "linkage-accepted.json": "linkage-decision",
     "identity-policy.json": "identity-policy",
     "source-of-truth-policy.json": "source-of-truth-policy"
   },
   "invalid": {
-    "execution-unsupported-schema.json": "execution-observation",
-    "execution-event-after-ingest.json": "execution-observation",
-    "execution-scale-mismatch.json": "execution-observation",
-    "linkage-cross-portfolio-accepted.json": "linkage-decision"
+    "execution-unsupported-schema.json": {
+      "contract": "execution-observation",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "unsupported schema version"
+    },
+    "execution-event-after-ingest.json": {
+      "contract": "execution-observation",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "event_time after ingest_time"
+    },
+    "execution-scale-mismatch.json": {
+      "contract": "execution-observation",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "decimal scale mismatch"
+    },
+    "execution-payload-after-ingest.json": {
+      "contract": "execution-observation",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "payload execution time after ingest"
+    },
+    "execution-spot-long-settlement.json": {
+      "contract": "execution-observation",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "spot settlement outside versioned envelope"
+    },
+    "execution-status-conflict.json": {
+      "contract": "execution-observation",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "operation type, status, and lifecycle conflict"
+    },
+    "linkage-cross-portfolio-accepted.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "accepted candidate is outside canonical scope"
+    },
+    "linkage-accepted-wrong-reason.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "accepted linkage requires exact deterministic reason"
+    },
+    "linkage-rejected-wrong-reason.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "rejected linkage requires human rejection reason"
+    },
+    "linkage-unmatched-with-candidate.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "unmatched linkage cannot contain candidates"
+    },
+    "linkage-ambiguous-without-candidates.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "ambiguous linkage requires multiple candidates"
+    },
+    "linkage-cross-scope-wrong-reason.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "cross-scope rejection requires scope-mismatch reason"
+    },
+    "linkage-ambiguous-cross-portfolio.json": {
+      "contract": "linkage-decision",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "non-cross-scope decisions cannot contain cross-scope candidates"
+    }
   }
 }

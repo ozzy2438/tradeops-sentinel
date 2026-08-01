@@ -17,15 +17,21 @@ reconciliation, API, or LLM implementation.
 ## Version and identity rules
 
 1. `schema_version` is the contract version and is currently `1.0.0`.
-2. `entity_version` versions an observation or canonical entity record.
+2. `entity_version` versions a canonical entity record. Observation envelopes
+   are immutable in TS-3: each correction or late revision receives a new
+   `observation_id` linked with `supersedes_observation_id` and uses
+   `entity_version: 1`; values greater than one are reserved for a future
+   explicitly versioned observation-revision contract. Persistence must retain
+   both fields without treating an observation ID as mutable.
 3. `source_version` is the source system's monotonic version, represented as a
    decimal-free string to avoid numeric precision loss.
 4. `canonical_state_version` versions an immutable canonical projection. A
    future reconciliation run/version remains separate and is not folded into
    this value.
-5. Delivery identity is `(source_system, source_event_id)`. Source identity is
-   `(tenant_id, portfolio_id, source_system, observation_kind,
-   source_business_key, source_version)`.
+5. Delivery identity is `(source_system, source_event_id)`. Stable source-family
+   identity is `(tenant_id, portfolio_id, source_system, observation_kind,
+   source_business_key)`; `source_version` is deliberately excluded from that
+   key and orders corrections or revisions within the family.
 6. Same delivery identity and same content is an idempotent replay. Same
    source identity with different content is a conflict. A greater source
    version is appended and supersedes the active source version; a lower late
@@ -35,13 +41,19 @@ reconciliation, API, or LLM implementation.
 
 ## Time and economic semantics
 
-`event_time`, `effective_time`, and `ingest_time` are separate timezone-aware
-timestamps. Only `event_time <= ingest_time` is required: an effective date may
-legitimately be future-dated for an FX Forward. Decimal values carry an
-explicit scale; the Pydantic model requires the lexical fractional precision to
-equal that scale. Amount currencies must match base/terms currencies, and the
-rate orientation is fixed to terms currency per base currency. No market
-calendar or economic tolerance is inferred in TS-3.
+All material timestamps, including payload event times, provenance times, and
+canonical timestamps, are timezone-aware. Observation payload availability
+times must not be after the envelope `ingest_time`; an FX Forward's future
+`value_date` remains an economic date and is not treated as data availability.
+Canonical state requires `source_watermark <= as_of_time`, every provenance
+reference to be present in `source_version_set`, and every `ingested_at` to be
+within the watermark. Decimal values carry an explicit scale; the Pydantic
+model requires the lexical fractional precision to equal that scale. Amount
+currencies must match base/terms currencies, and the rate orientation is fixed
+to terms currency per base currency. Settlement rule `1.0.0` bounds Spot to a
+T+0-to-T+2 business-day envelope represented by at most four calendar days in
+this calendar-free contract, while Forward requires a strictly future value
+date. A later calendar-aware rule must be versioned.
 
 ## Source-of-truth boundary
 
