@@ -1,0 +1,393 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "common.schema.json",
+  "title": "TradeOps Sentinel common contract definitions",
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "semanticVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{2,127}$"
+    },
+    "tenantId": {
+      "type": "string",
+      "pattern": "^tenant_[a-z0-9][a-z0-9_-]{1,63}$"
+    },
+    "portfolioId": {
+      "type": "string",
+      "pattern": "^portfolio_[a-z0-9][a-z0-9_-]{1,63}$"
+    },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^corr_[a-z0-9][a-z0-9_-]{1,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sourceVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,18}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "decimal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "scale"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18
+        }
+      }
+    },
+    "decimalAmount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "value", "scale"],
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/currency"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18
+        }
+      }
+    },
+    "decimalRate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "scale", "orientation"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18
+        },
+        "orientation": {
+          "const": "TERMS_CURRENCY_PER_BASE_CURRENCY"
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity_type", "actor_id"],
+      "properties": {
+        "identity_type": {
+          "enum": ["SYSTEM", "HUMAN", "AGENT", "SOURCE"]
+        },
+        "actor_id": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "sourceSystem": {
+      "enum": [
+        "FIX_EXECUTION",
+        "FIX_TRADE_CAPTURE",
+        "FPML_CONFIRMATION",
+        "MOCK_LEGACY_BOOKING"
+      ]
+    },
+    "observationKind": {
+      "enum": [
+        "EXECUTION",
+        "TRADE_CAPTURE",
+        "CONFIRMATION",
+        "BOOKING"
+      ]
+    },
+    "productType": {
+      "enum": ["FX_SPOT", "FX_FORWARD"]
+    },
+    "side": {
+      "enum": ["BUY_BASE", "SELL_BASE"]
+    },
+    "lifecycleStatus": {
+      "enum": [
+        "NEW",
+        "CAPTURED",
+        "CONFIRMED",
+        "BOOKED",
+        "AMENDED",
+        "CANCELLED",
+        "SETTLED"
+      ]
+    },
+    "fxPayload": {
+      "type": "object",
+      "required": [
+        "product_type",
+        "source_trade_id",
+        "base_currency",
+        "terms_currency",
+        "side",
+        "base_amount",
+        "terms_amount",
+        "quoted_rate",
+        "trade_date",
+        "value_date",
+        "counterparty_id",
+        "book_id",
+        "lifecycle_status"
+      ],
+      "properties": {
+        "product_type": {
+          "$ref": "#/$defs/productType"
+        },
+        "source_trade_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "base_currency": {
+          "$ref": "#/$defs/currency"
+        },
+        "terms_currency": {
+          "$ref": "#/$defs/currency"
+        },
+        "side": {
+          "$ref": "#/$defs/side"
+        },
+        "base_amount": {
+          "$ref": "#/$defs/decimalAmount"
+        },
+        "terms_amount": {
+          "$ref": "#/$defs/decimalAmount"
+        },
+        "quoted_rate": {
+          "$ref": "#/$defs/decimalRate"
+        },
+        "trade_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "value_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "counterparty_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "book_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "lifecycle_status": {
+          "$ref": "#/$defs/lifecycleStatus"
+        }
+      }
+    },
+    "observationEnvelope": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "observation_id",
+        "observation_kind",
+        "entity_version",
+        "tenant_id",
+        "portfolio_id",
+        "correlation_id",
+        "source_system",
+        "source_event_id",
+        "source_business_key",
+        "source_version",
+        "content_hash",
+        "event_time",
+        "effective_time",
+        "ingest_time",
+        "source_sequence",
+        "lineage_group_id",
+        "actor",
+        "payload"
+      ],
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/schemaVersion"
+        },
+        "observation_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "observation_kind": {
+          "$ref": "#/$defs/observationKind"
+        },
+        "entity_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/tenantId"
+        },
+        "portfolio_id": {
+          "$ref": "#/$defs/portfolioId"
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/correlationId"
+        },
+        "source_system": {
+          "$ref": "#/$defs/sourceSystem"
+        },
+        "source_event_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_business_key": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_version": {
+          "$ref": "#/$defs/sourceVersion"
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "event_time": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "effective_time": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "ingest_time": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "source_sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lineage_group_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "actor": {
+          "$ref": "#/$defs/actor"
+        },
+        "supersedes_observation_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "supersession_reason": {
+          "enum": ["CORRECTION", "LATE_REVISION", "SOURCE_AMENDMENT"]
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    },
+    "fieldProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_type",
+        "source_observation_id",
+        "source_observation_entity_version",
+        "source_version",
+        "field_path",
+        "normalisation_rule_id",
+        "normalisation_rule_version",
+        "resolution_rule_version",
+        "observed_at",
+        "effective_at",
+        "ingested_at",
+        "conflict_status"
+      ],
+      "properties": {
+        "source_type": {
+          "$ref": "#/$defs/observationKind"
+        },
+        "source_observation_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source_observation_entity_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_version": {
+          "$ref": "#/$defs/sourceVersion"
+        },
+        "field_path": {
+          "type": "string",
+          "pattern": "^/payload/[a-z][a-z0-9_/-]*$"
+        },
+        "normalisation_rule_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "normalisation_rule_version": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "resolution_rule_version": {
+          "$ref": "#/$defs/semanticVersion"
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "effective_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "ingested_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "conflict_status": {
+          "enum": [
+            "SELECTED",
+            "SECONDARY_SUPPORTING",
+            "CONFLICTING",
+            "UNAVAILABLE"
+          ]
+        }
+      }
+    },
+    "sourceVersionSetItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_id",
+        "observation_kind",
+        "source_version",
+        "content_hash"
+      ],
+      "properties": {
+        "observation_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "observation_kind": {
+          "$ref": "#/$defs/observationKind"
+        },
+        "source_version": {
+          "$ref": "#/$defs/sourceVersion"
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

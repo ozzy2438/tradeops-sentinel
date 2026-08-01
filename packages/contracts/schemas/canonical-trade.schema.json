@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical-trade.schema.json",
+  "title": "Canonical FX trade identity and state",
+  "description": "Stable trade identity plus the currently selected canonical field values. Source evidence remains immutable observations referenced through field provenance.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "trade_id",
+    "entity_version",
+    "tenant_id",
+    "portfolio_id",
+    "correlation_id",
+    "content_hash",
+    "created_at",
+    "updated_at",
+    "actor",
+    "linkage_decision_id",
+    "state",
+    "field_provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "trade_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "entity_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "tenant_id": {
+      "$ref": "common.schema.json#/$defs/tenantId"
+    },
+    "portfolio_id": {
+      "$ref": "common.schema.json#/$defs/portfolioId"
+    },
+    "correlation_id": {
+      "$ref": "common.schema.json#/$defs/correlationId"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "actor": {
+      "$ref": "common.schema.json#/$defs/actor"
+    },
+    "linkage_decision_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "state": {
+      "$ref": "canonical-fields.schema.json#/$defs/canonicalFields"
+    },
+    "field_provenance": {
+      "$ref": "canonical-fields.schema.json#/$defs/fieldProvenanceMap"
+    }
+  },
+  "additionalProperties": false
+}

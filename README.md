@@ -2,7 +2,7 @@
 
 **Global Markets Trade-Break Automation & Regulatory Evidence Platform — reference implementation.**
 
-> **Status: Sprint 1 — foundations only.** This repository currently contains repository/engineering governance and CI scaffolding (Epic E1). No domain code, no LLM workflow, no cloud deployment, and no RPA executor implementation exist yet.
+> **Status: Sprint 1 — E1 closed; E2 TS-3 contract slice in review.** The repository contains protected engineering governance plus the canonical FX trade/observation contract. Persistence, reconciliation, generator, LLM workflow, cloud deployment, and RPA executor implementation remain out of scope for this slice.
 
 ## What this is
 

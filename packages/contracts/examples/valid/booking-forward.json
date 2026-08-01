@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0.0",
+  "observation_id": "obs_booking_forward_001",
+  "observation_kind": "BOOKING",
+  "entity_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "correlation_id": "corr_ts3_forward_001",
+  "source_system": "MOCK_LEGACY_BOOKING",
+  "source_event_id": "evt_booking_forward_001",
+  "source_business_key": "trade_forward_001",
+  "source_version": "5",
+  "content_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "event_time": "2026-07-31T10:02:00Z",
+  "effective_time": "2026-07-31T10:02:00Z",
+  "ingest_time": "2026-07-31T10:02:03Z",
+  "source_sequence": 5,
+  "lineage_group_id": "lineage_forward_001",
+  "actor": {
+    "identity_type": "SOURCE",
+    "actor_id": "mock_booking"
+  },
+  "payload": {
+    "product_type": "FX_FORWARD",
+    "source_trade_id": "trade_forward_001",
+    "base_currency": "USD",
+    "terms_currency": "JPY",
+    "side": "SELL_BASE",
+    "base_amount": {
+      "currency": "USD",
+      "value": "2500000.00",
+      "scale": 2
+    },
+    "terms_amount": {
+      "currency": "JPY",
+      "value": "382500000.00",
+      "scale": 2
+    },
+    "quoted_rate": {
+      "value": "153.0000",
+      "scale": 4,
+      "orientation": "TERMS_CURRENCY_PER_BASE_CURRENCY"
+    },
+    "trade_date": "2026-07-31",
+    "value_date": "2026-12-31",
+    "counterparty_id": "cp_sakura",
+    "book_id": "book_sydney",
+    "lifecycle_status": "BOOKED",
+    "booking_record_id": "booking_forward_001",
+    "booking_version": 5,
+    "booking_status": "BOOKED",
+    "last_updated_time": "2026-07-31T10:02:00Z",
+    "confirmation_reference": "CONF-FORWARD-001",
+    "record_fingerprint": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "policy_version": "1.0.0",
+  "scope": "MVP_SYNTHETIC_FX",
+  "field_rules": [
+    {
+      "field_path": "/payload/product_type",
+      "owner": "EXECUTION_OR_TRADE_CAPTURE",
+      "trusted_sources": ["FIX_EXECUTION", "FIX_TRADE_CAPTURE"],
+      "source_precedence": ["FIX_EXECUTION", "FIX_TRADE_CAPTURE", "FPML_CONFIRMATION", "MOCK_LEGACY_BOOKING"],
+      "secondary_sources": ["FPML_CONFIRMATION", "MOCK_LEGACY_BOOKING"],
+      "conflict_outcome": "EMIT_BREAK_NO_SILENT_OVERWRITE"
+    },
+    {
+      "field_path": "/payload/quoted_rate",
+      "owner": "EXECUTION_OR_TRADE_CAPTURE",
+      "trusted_sources": ["FIX_EXECUTION", "FIX_TRADE_CAPTURE"],
+      "source_precedence": ["FIX_EXECUTION", "FIX_TRADE_CAPTURE", "FPML_CONFIRMATION", "MOCK_LEGACY_BOOKING"],
+      "secondary_sources": ["FPML_CONFIRMATION", "MOCK_LEGACY_BOOKING"],
+      "conflict_outcome": "EMIT_BREAK_NO_SILENT_OVERWRITE"
+    },
+    {
+      "field_path": "/payload/confirmation_status",
+      "owner": "CONFIRMATION",
+      "trusted_sources": ["FPML_CONFIRMATION"],
+      "source_precedence": ["FPML_CONFIRMATION"],
+      "secondary_sources": [],
+      "conflict_outcome": "RETAIN_SOURCE_ONLY"
+    },
+    {
+      "field_path": "/payload/booking_status",
+      "owner": "BOOKING_READ_BACK",
+      "trusted_sources": ["MOCK_LEGACY_BOOKING"],
+      "source_precedence": ["MOCK_LEGACY_BOOKING"],
+      "secondary_sources": [],
+      "conflict_outcome": "RETAIN_SOURCE_ONLY"
+    },
+    {
+      "field_path": "/linkage/trade_id",
+      "owner": "LINKAGE_RULE",
+      "trusted_sources": ["FIX_EXECUTION", "FIX_TRADE_CAPTURE", "FPML_CONFIRMATION", "MOCK_LEGACY_BOOKING"],
+      "source_precedence": ["FIX_EXECUTION", "FIX_TRADE_CAPTURE", "FPML_CONFIRMATION", "MOCK_LEGACY_BOOKING"],
+      "secondary_sources": [],
+      "conflict_outcome": "REQUIRE_LINKAGE_REVIEW"
+    }
+  ]
+}

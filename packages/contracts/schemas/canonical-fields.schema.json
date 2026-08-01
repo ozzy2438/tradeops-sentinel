@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical-fields.schema.json",
+  "title": "Canonical FX field definitions",
+  "$defs": {
+    "canonicalFields": {
+      "type": "object",
+      "required": [
+        "product_type",
+        "base_currency",
+        "terms_currency",
+        "side",
+        "base_amount",
+        "terms_amount",
+        "quoted_rate",
+        "trade_date",
+        "value_date",
+        "lifecycle_status",
+        "counterparty_id",
+        "book_id"
+      ],
+      "properties": {
+        "product_type": {
+          "$ref": "common.schema.json#/$defs/productType"
+        },
+        "base_currency": {
+          "$ref": "common.schema.json#/$defs/currency"
+        },
+        "terms_currency": {
+          "$ref": "common.schema.json#/$defs/currency"
+        },
+        "side": {
+          "$ref": "common.schema.json#/$defs/side"
+        },
+        "base_amount": {
+          "$ref": "common.schema.json#/$defs/decimalAmount"
+        },
+        "terms_amount": {
+          "$ref": "common.schema.json#/$defs/decimalAmount"
+        },
+        "quoted_rate": {
+          "$ref": "common.schema.json#/$defs/decimalRate"
+        },
+        "trade_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "value_date": {
+          "type": "string",
+          "format": "date"
+        },
+        "lifecycle_status": {
+          "$ref": "common.schema.json#/$defs/lifecycleStatus"
+        },
+        "counterparty_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "book_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "fieldProvenanceMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product_type",
+        "base_currency",
+        "terms_currency",
+        "side",
+        "base_amount",
+        "terms_amount",
+        "quoted_rate",
+        "trade_date",
+        "value_date",
+        "lifecycle_status",
+        "counterparty_id",
+        "book_id"
+      ],
+      "properties": {
+        "product_type": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "base_currency": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "terms_currency": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "side": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "base_amount": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "terms_amount": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "quoted_rate": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "trade_date": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "value_date": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "lifecycle_status": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "counterparty_id": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "book_id": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        }
+      }
+    }
+  }
+}

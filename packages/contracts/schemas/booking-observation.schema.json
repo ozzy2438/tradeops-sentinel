@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "booking-observation.schema.json",
+  "title": "Mock legacy-booking observation",
+  "description": "A read-only snapshot of the current legacy booking state. It is authoritative only for what the booking system currently stores.",
+  "allOf": [
+    {
+      "$ref": "common.schema.json#/$defs/observationEnvelope"
+    },
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "observation_kind": {
+          "const": "BOOKING"
+        },
+        "source_system": {
+          "const": "MOCK_LEGACY_BOOKING"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/fxPayload"
+            },
+            {
+              "type": "object",
+              "required": [
+                "booking_record_id",
+                "booking_version",
+                "booking_status",
+                "last_updated_time",
+                "record_fingerprint"
+              ],
+              "properties": {
+                "booking_record_id": {
+                  "$ref": "common.schema.json#/$defs/identifier"
+                },
+                "booking_version": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "booking_status": {
+                  "enum": ["BOOKED", "AMENDED", "CANCELLED"]
+                },
+                "last_updated_time": {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                },
+                "confirmation_reference": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "record_fingerprint": {
+                  "$ref": "common.schema.json#/$defs/sha256"
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}

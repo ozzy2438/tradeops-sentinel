@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "source-of-truth-policy.schema.json",
+  "title": "FX field source-of-truth and ownership policy",
+  "description": "Machine-readable field ownership and trusted-source precedence for the synthetic FX MVP. Conflicts remain evidence and are never silently overwritten.",
+  "type": "object",
+  "required": ["policy_version", "scope", "field_rules"],
+  "properties": {
+    "policy_version": {
+      "$ref": "common.schema.json#/$defs/semanticVersion"
+    },
+    "scope": {
+      "const": "MVP_SYNTHETIC_FX"
+    },
+    "field_rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/fieldRule"
+      }
+    }
+  },
+  "$defs": {
+    "fieldRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field_path",
+        "owner",
+        "trusted_sources",
+        "source_precedence",
+        "secondary_sources",
+        "conflict_outcome"
+      ],
+      "properties": {
+        "field_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "enum": [
+            "EXECUTION_OR_TRADE_CAPTURE",
+            "CONFIRMATION",
+            "BOOKING_READ_BACK",
+            "LINKAGE_RULE"
+          ]
+        },
+        "trusted_sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/sourceSystem"
+          }
+        },
+        "source_precedence": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/sourceSystem"
+          }
+        },
+        "secondary_sources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/sourceSystem"
+          }
+        },
+        "conflict_outcome": {
+          "enum": [
+            "EMIT_BREAK_NO_SILENT_OVERWRITE",
+            "RETAIN_SOURCE_ONLY",
+            "REQUIRE_LINKAGE_REVIEW"
+          ]
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

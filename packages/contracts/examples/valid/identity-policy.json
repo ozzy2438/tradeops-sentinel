@@ -1,0 +1,79 @@
+{
+  "policy_version": "1.0.0",
+  "source_identity_fields": [
+    "tenant_id",
+    "portfolio_id",
+    "source_system",
+    "observation_kind",
+    "source_business_key",
+    "source_version"
+  ],
+  "delivery_identity_fields": ["source_system", "source_event_id"],
+  "content_hash_field": "content_hash",
+  "outcomes": [
+    {
+      "precedence": 1,
+      "case_id": "unsupported_schema",
+      "condition": {"description": "schema_version is not supported", "schema_version_supported": false},
+      "outcome": "REJECT_UNSUPPORTED_SCHEMA_VERSION",
+      "storage_effect": "REJECT",
+      "canonical_effect": "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS"
+    },
+    {
+      "precedence": 2,
+      "case_id": "cross_scope_linkage",
+      "condition": {"description": "candidate linkage crosses tenant or portfolio scope", "scope_match": false},
+      "outcome": "REJECT_CROSS_PORTFOLIO_LINKAGE",
+      "storage_effect": "REJECT",
+      "canonical_effect": "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS"
+    },
+    {
+      "precedence": 3,
+      "case_id": "delivery_replay",
+      "condition": {"description": "same delivery identity and same content", "same_delivery_identity": true, "same_content_hash": true},
+      "outcome": "IDEMPOTENT_REPLAY",
+      "storage_effect": "APPEND_DUPLICATE_EVIDENCE",
+      "canonical_effect": "NO_CHANGE"
+    },
+    {
+      "precedence": 4,
+      "case_id": "delivery_conflict",
+      "condition": {"description": "same delivery identity but different content", "same_delivery_identity": true, "same_content_hash": false},
+      "outcome": "DUPLICATE_SOURCE_CONFLICT",
+      "storage_effect": "APPEND_CONFLICT_EVIDENCE",
+      "canonical_effect": "REQUIRE_LINKAGE_REVIEW"
+    },
+    {
+      "precedence": 5,
+      "case_id": "new_source_version",
+      "condition": {"description": "same source identity with a greater source version", "same_source_identity": true, "source_version_relation": "GREATER"},
+      "outcome": "NEW_SOURCE_VERSION",
+      "storage_effect": "APPEND_AND_SUPERSEDE_ACTIVE_VERSION",
+      "canonical_effect": "RECONCILE_NEW_SOURCE_SET"
+    },
+    {
+      "precedence": 6,
+      "case_id": "late_source_version",
+      "condition": {"description": "same source identity with a lower source version arriving late", "same_source_identity": true, "source_version_relation": "LOWER"},
+      "outcome": "LATE_SOURCE_VERSION_RECORDED",
+      "storage_effect": "APPEND_LATE_NON_ACTIVE_VERSION",
+      "canonical_effect": "NO_CHANGE"
+    },
+    {
+      "precedence": 7,
+      "case_id": "ambiguous_linkage",
+      "condition": {"description": "zero or multiple eligible candidates remain", "scope_match": true},
+      "outcome": "LINKAGE_REVIEW_REQUIRED",
+      "storage_effect": "APPEND",
+      "canonical_effect": "REQUIRE_LINKAGE_REVIEW"
+    },
+    {
+      "precedence": 8,
+      "case_id": "new_observation",
+      "condition": {"description": "no delivery or source identity match exists"},
+      "outcome": "NEW_OBSERVATION",
+      "storage_effect": "APPEND",
+      "canonical_effect": "CREATE_PROJECTION_CANDIDATE"
+    }
+  ]
+}
