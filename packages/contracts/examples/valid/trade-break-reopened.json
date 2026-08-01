@@ -51,7 +51,8 @@
       "expected_value": "2026-08-05",
       "observed_value": "2026-08-06",
       "tolerance": {"mode": "NONE", "value": null},
-      "normalisation_rule_version": "1.0.0"
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": ["evidence_date_compare_reopen_002", "evidence_date_rule_reopen_002"]
     }
   ],
   "evidence": [
@@ -74,6 +75,7 @@
       "field_path": "/payload/value_date"
     }
   ],
+  "missing_source_expectation": null,
   "state": "OPEN",
   "previous_state": null,
   "transition_reason": "DETECTED",

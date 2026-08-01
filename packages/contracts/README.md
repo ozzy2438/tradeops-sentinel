@@ -37,10 +37,34 @@ The MVP has exactly eight break families:
 7. `LIFECYCLE_STATUS_MISMATCH`
 8. `POST_ACTION_VERIFICATION_FAILURE`
 
-JSON Schema enforces the closed vocabulary, family-specific combinations, and
-permitted lifecycle edges. Pydantic additionally enforces cross-field scope,
-source identity, evidence, priority, timestamp, and resolution invariants.
+JSON Schema enforces the closed vocabulary, family-specific combinations,
+family field/value-type matrix, and permitted lifecycle edges. Each
+comparison carries explicit `evidence_ids`; Pydantic binds those IDs to
+same-path, family-allowed evidence roles. Pydantic additionally enforces
+cross-field scope, source identity, resolution type and role, resolution-run
+linkage, evidence chronology, priority, timestamp, and comparison invariants.
+JSON Schema enforces structural uniqueness; cross-array ID, role, and
+timestamp joins are recorded as semantic-layer checks in the fixture manifest.
 Unknown taxonomy and contract versions fail closed.
+
+`MISSING_REQUIRED_SOURCE` carries a typed `missing_source_expectation` with
+the expected observation kind and source system, field path, arrival-window
+rule version, ingestion watermark, and expected-by timestamp. The expected
+kind is limited to execution, confirmation, or booking; trade capture is an
+observed context, never an expected missing source.
+
+Resolved records carry `resolution.evidence_roles` alongside
+`resolution.evidence_ids`. A reconciliation resolution must cite a
+`RECONCILIATION_RESULT` captured no later than `resolved_at`, and its run ID
+must match the break run. An owner-approved non-action resolution is limited
+to the missing-source and post-action families and must cite a human-approved
+`DISPOSITION_APPROVAL`.
+
+`examples/trade-break-fixture-matrix.json` plus the manifest-driven tests
+exercise every family for both synthetic Spot and Forward products, while the
+targeted negative tests prove cross-family comparison drift, duplicate or
+unknown resolution IDs, chronology violations, and unsupported missing-source
+contexts fail closed.
 
 Break records use immutable record identity: the initial record has
 `break_version: 1` and no predecessor; a reopen mints a new non-reused

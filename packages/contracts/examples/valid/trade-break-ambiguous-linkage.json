@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_ambiguous_linkage_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "correlation_id": "corr_break_ambiguous_001",
+  "trade_id": "trade_fx_ambiguous_001",
+  "canonical_state_version": 1,
+  "reconciliation_run_id": "run_recon_ambiguous_001",
+  "product_type": "FX_SPOT",
+  "family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE",
+  "condition_code": "LINKAGE_CANDIDATE_SCOPE_INVARIANT",
+  "severity": "HIGH",
+  "severity_context": null,
+  "priority": {"materiality_band": "UNASSESSED", "deadline_status": "DUE", "case_age_seconds": 300, "ordering_key": [2, 2, 2, -300]},
+  "source_version_set": [
+    {"source_observation_id": "obs_trade_capture_ambiguous_001", "observation_kind": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_sydney", "source_version": "1", "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+  ],
+  "evaluated_field_paths": ["/linkage/trade_id"],
+  "comparisons": [{"field_path": "/linkage/trade_id", "value_type": "COUNT", "expected_value": "1", "observed_value": "2", "tolerance": {"mode": "NONE", "value": null}, "normalisation_rule_version": "1.0.0", "evidence_ids": ["evidence_candidate_link_001", "evidence_linkage_decision_001"]}],
+  "evidence": [
+    {"evidence_id": "evidence_candidate_link_001", "role": "CANDIDATE_LINK", "content_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222", "captured_at": "2026-08-01T12:00:00Z", "source_observation_id": "obs_trade_capture_ambiguous_001", "source_version": "1", "field_path": "/linkage/trade_id"},
+    {"evidence_id": "evidence_linkage_decision_001", "role": "LINKAGE_DECISION", "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333", "captured_at": "2026-08-01T12:00:01Z", "source_observation_id": "obs_trade_capture_ambiguous_001", "source_version": "1", "field_path": "/linkage/trade_id"}
+  ],
+  "missing_source_expectation": null,
+  "state": "UNDER_INVESTIGATION",
+  "previous_state": "OPEN",
+  "transition_reason": "BEGIN_INVESTIGATION",
+  "detected_at": "2026-08-01T12:00:00Z",
+  "state_changed_at": "2026-08-01T12:00:02Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": null,
+  "causal_label_id": null
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "scope": "MVP_SYNTHETIC_FX",
+  "products": ["FX_SPOT", "FX_FORWARD"],
+  "families": [
+    {"family": "MISSING_REQUIRED_SOURCE", "positive_fixture": "trade-break-missing-execution.json", "boundary": "detected_at equals expected_by", "negative": "TRADE_CAPTURE is not an expected missing source"},
+    {"family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE", "positive_fixture": "trade-break-ambiguous-linkage.json", "boundary": "candidate count is explicitly typed", "negative": "lifecycle field cannot represent linkage count"},
+    {"family": "DUPLICATE_SOURCE_CONFLICT", "positive_fixture": "trade-break-duplicate-source.json", "boundary": "source identity values remain identifier-shaped", "negative": "lifecycle field cannot represent source identity"},
+    {"family": "CURRENCY_PAIR_OR_SIDE_MISMATCH", "positive_fixture": "trade-break-currency-side.json", "boundary": "currency pair remains three-letter pair notation", "negative": "decimal field cannot represent currency pair"},
+    {"family": "ECONOMIC_VALUE_MISMATCH", "positive_fixture": "trade-break-economic-forward.json", "boundary": "decimal comparison retains explicit tolerance", "negative": "lifecycle field cannot represent decimal value"},
+    {"family": "TRADE_OR_VALUE_DATE_MISMATCH", "positive_fixture": "trade-break-resolved.json", "boundary": "dates remain ISO calendar dates", "negative": "lifecycle field cannot represent a date"},
+    {"family": "LIFECYCLE_STATUS_MISMATCH", "positive_fixture": "trade-break-lifecycle-status.json", "boundary": "status values remain closed vocabulary", "negative": "decimal field cannot represent lifecycle status"},
+    {"family": "POST_ACTION_VERIFICATION_FAILURE", "positive_fixture": "trade-break-post-action.json", "boundary": "read-back values remain explicit and distinct", "negative": "date field cannot represent read-back status"}
+  ]
+}

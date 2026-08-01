@@ -51,7 +51,8 @@
       "expected_value": "2026-08-05",
       "observed_value": "2026-08-06",
       "tolerance": {"mode": "NONE", "value": null},
-      "normalisation_rule_version": "1.0.0"
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": ["evidence_date_compare_001", "evidence_date_rule_001"]
     }
   ],
   "evidence": [
@@ -83,6 +84,7 @@
       "field_path": "/payload/value_date"
     }
   ],
+  "missing_source_expectation": null,
   "state": "RESOLVED",
   "previous_state": "VERIFYING",
   "transition_reason": "RESOLUTION_VERIFIED",
@@ -90,12 +92,13 @@
   "state_changed_at": "2026-08-01T11:04:00Z",
   "resolved_at": "2026-08-01T11:05:00Z",
   "resolution": {
-    "resolution_type": "RECONCILIATION_PASS",
-    "reconciliation_run_id": "run_recon_003",
-    "disposition_id": null,
-    "approver": null,
-    "evidence_ids": ["evidence_reconciliation_pass_001"]
-  },
+      "resolution_type": "RECONCILIATION_PASS",
+      "reconciliation_run_id": "run_recon_003",
+      "disposition_id": null,
+      "approver": null,
+      "evidence_ids": ["evidence_reconciliation_pass_001"],
+      "evidence_roles": ["RECONCILIATION_RESULT"]
+    },
   "supersedes_break_id": null,
   "causal_label_id": null
 }

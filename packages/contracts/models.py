@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import date, datetime
+from re import fullmatch
 from typing import Annotated, Any, Literal, TypeAlias
 
 from pydantic import (
@@ -912,6 +913,7 @@ BreakValueType: TypeAlias = Literal[
     "DATE",
     "LIFECYCLE_STATUS",
     "READBACK",
+    "SOURCE_IDENTITY",
 ]
 ToleranceMode: TypeAlias = Literal["NONE", "ABSOLUTE_DECIMAL", "RELATIVE_DECIMAL"]
 BreakResolutionType: TypeAlias = Literal[
@@ -922,6 +924,7 @@ BreakFieldPath = Annotated[
     str,
     StringConstraints(pattern=r"^/(payload|linkage)/[a-z][a-z0-9_/-]*$"),
 ]
+MissingSourceObservationKind: TypeAlias = Literal["EXECUTION", "CONFIRMATION", "BOOKING"]
 
 _BREAK_FAMILY_ORDER: tuple[BreakFamily, ...] = (
     "MISSING_REQUIRED_SOURCE",
@@ -1019,6 +1022,69 @@ _BREAK_FAMILY_POLICY: dict[BreakFamily, BreakFamilyDefinitionSpec] = {
         ),
         "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION",
     ),
+}
+
+BreakComparisonSpec: TypeAlias = tuple[str, BreakValueType]
+_BREAK_COMPARISON_POLICY: dict[BreakFamily, tuple[BreakComparisonSpec, ...]] = {
+    "MISSING_REQUIRED_SOURCE": (
+        ("/payload/execution_status", "ABSENCE"),
+        ("/payload/confirmation_status", "ABSENCE"),
+        ("/payload/booking_status", "ABSENCE"),
+    ),
+    "AMBIGUOUS_OR_UNMATCHED_LINKAGE": (("/linkage/trade_id", "COUNT"),),
+    "DUPLICATE_SOURCE_CONFLICT": (
+        ("/payload/source_business_key", "SOURCE_IDENTITY"),
+        ("/payload/source_version", "SOURCE_IDENTITY"),
+        ("/payload/content_hash", "SOURCE_IDENTITY"),
+    ),
+    "CURRENCY_PAIR_OR_SIDE_MISMATCH": (
+        ("/payload/currency_pair", "CURRENCY_PAIR"),
+        ("/payload/side", "SIDE"),
+    ),
+    "ECONOMIC_VALUE_MISMATCH": (
+        ("/payload/base_amount", "DECIMAL"),
+        ("/payload/terms_amount", "DECIMAL"),
+        ("/payload/quoted_rate", "DECIMAL"),
+    ),
+    "TRADE_OR_VALUE_DATE_MISMATCH": (
+        ("/payload/trade_date", "DATE"),
+        ("/payload/value_date", "DATE"),
+    ),
+    "LIFECYCLE_STATUS_MISMATCH": (("/payload/lifecycle_status", "LIFECYCLE_STATUS"),),
+    "POST_ACTION_VERIFICATION_FAILURE": (
+        ("/payload/action_target", "READBACK"),
+        ("/payload/action_status", "READBACK"),
+        ("/payload/book_id", "READBACK"),
+    ),
+}
+_BREAK_COMPARISON_EVIDENCE_ROLES: dict[BreakFamily, frozenset[BreakEvidenceRole]] = {
+    "MISSING_REQUIRED_SOURCE": frozenset({"EXPECTED_SOURCE"}),
+    "AMBIGUOUS_OR_UNMATCHED_LINKAGE": frozenset({"CANDIDATE_LINK", "LINKAGE_DECISION"}),
+    "DUPLICATE_SOURCE_CONFLICT": frozenset({"SOURCE_PAYLOAD_PAIR", "SOURCE_METADATA"}),
+    "CURRENCY_PAIR_OR_SIDE_MISMATCH": frozenset({"FIELD_COMPARISON", "NORMALISATION_RULE"}),
+    "ECONOMIC_VALUE_MISMATCH": frozenset({"DECIMAL_COMPARISON", "NORMALISATION_RULE"}),
+    "TRADE_OR_VALUE_DATE_MISMATCH": frozenset({"DATE_COMPARISON", "NORMALISATION_RULE"}),
+    "LIFECYCLE_STATUS_MISMATCH": frozenset({"LIFECYCLE_RELATION", "NORMALISATION_RULE"}),
+    "POST_ACTION_VERIFICATION_FAILURE": frozenset(
+        {"ACTION_INSTRUCTION", "PRE_ACTION_READ", "POST_ACTION_READ", "CHANGED_FIELD_DIFF"}
+    ),
+}
+_BREAK_ALLOWED_RESOLUTION_TYPES: dict[BreakFamily, frozenset[BreakResolutionType]] = {
+    "MISSING_REQUIRED_SOURCE": frozenset({"RECONCILIATION_PASS", "OWNER_APPROVED_NON_ACTION"}),
+    "AMBIGUOUS_OR_UNMATCHED_LINKAGE": frozenset({"RECONCILIATION_PASS"}),
+    "DUPLICATE_SOURCE_CONFLICT": frozenset({"RECONCILIATION_PASS"}),
+    "CURRENCY_PAIR_OR_SIDE_MISMATCH": frozenset({"RECONCILIATION_PASS"}),
+    "ECONOMIC_VALUE_MISMATCH": frozenset({"RECONCILIATION_PASS"}),
+    "TRADE_OR_VALUE_DATE_MISMATCH": frozenset({"RECONCILIATION_PASS"}),
+    "LIFECYCLE_STATUS_MISMATCH": frozenset({"RECONCILIATION_PASS"}),
+    "POST_ACTION_VERIFICATION_FAILURE": frozenset(
+        {"RECONCILIATION_PASS", "OWNER_APPROVED_NON_ACTION"}
+    ),
+}
+_EXPECTED_FIELD_BY_MISSING_SOURCE_KIND: dict[MissingSourceObservationKind, str] = {
+    "EXECUTION": "/payload/execution_status",
+    "CONFIRMATION": "/payload/confirmation_status",
+    "BOOKING": "/payload/booking_status",
 }
 
 _BREAK_LIFECYCLE_STATES: tuple[BreakLifecycleState, ...] = (
@@ -1188,6 +1254,68 @@ class BreakComparison(ContractModel):
     observed_value: str = Field(min_length=1)
     tolerance: BreakTolerance
     normalisation_rule_version: BreakRuleVersion
+    evidence_ids: list[Identifier] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def comparison_values_match_type(self) -> BreakComparison:
+        if self.expected_value == self.observed_value:
+            raise ValueError("break comparisons must contain distinct expected and observed values")
+        valid: bool
+        if self.value_type == "COUNT":
+            pattern = r"^[0-9]+$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        elif self.value_type == "CURRENCY_PAIR":
+            pattern = r"^[A-Z]{3}/[A-Z]{3}$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        elif self.value_type == "SIDE":
+            valid = self.expected_value in {"BUY_BASE", "SELL_BASE"} and self.observed_value in {
+                "BUY_BASE",
+                "SELL_BASE",
+            }
+        elif self.value_type == "DECIMAL":
+            pattern = r"^(0|[1-9][0-9]*)(\.[0-9]+)?$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        elif self.value_type == "DATE":
+            try:
+                date.fromisoformat(self.expected_value)
+                date.fromisoformat(self.observed_value)
+                valid = True
+            except ValueError:
+                valid = False
+        elif self.value_type == "LIFECYCLE_STATUS":
+            valid = self.expected_value in {
+                "NEW",
+                "CAPTURED",
+                "CONFIRMED",
+                "BOOKED",
+                "AMENDED",
+                "CANCELLED",
+                "SETTLED",
+            } and self.observed_value in {
+                "NEW",
+                "CAPTURED",
+                "CONFIRMED",
+                "BOOKED",
+                "AMENDED",
+                "CANCELLED",
+                "SETTLED",
+            }
+        elif self.value_type == "SOURCE_IDENTITY":
+            pattern = r"^[a-z][a-z0-9_-]{2,127}$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        else:
+            valid = True
+        if not valid:
+            raise ValueError(f"comparison values do not match value_type {self.value_type}")
+        return self
 
 
 class BreakPriority(ContractModel):
@@ -1197,15 +1325,43 @@ class BreakPriority(ContractModel):
     ordering_key: tuple[int, int, int, int]
 
 
+class MissingSourceExpectation(ContractModel):
+    expected_observation_kind: MissingSourceObservationKind
+    expected_source_system: SourceSystem
+    field_path: BreakFieldPath
+    arrival_window_rule_version: BreakRuleVersion
+    watermark_at: AwareTimestamp
+    expected_by: AwareTimestamp
+
+    @model_validator(mode="after")
+    def expectation_is_typed_and_ordered(self) -> MissingSourceExpectation:
+        expected_system = _SOURCE_SYSTEM_BY_OBSERVATION_KIND[self.expected_observation_kind]
+        if self.expected_source_system != expected_system:
+            raise ValueError("expected_source_system must match expected_observation_kind")
+        if (
+            self.field_path
+            != _EXPECTED_FIELD_BY_MISSING_SOURCE_KIND[self.expected_observation_kind]
+        ):
+            raise ValueError("missing-source field_path must match expected_observation_kind")
+        if self.expected_by < self.watermark_at:
+            raise ValueError("expected_by must not precede watermark_at")
+        return self
+
+
 class BreakResolution(ContractModel):
     resolution_type: BreakResolutionType
     reconciliation_run_id: Identifier | None = None
     disposition_id: Identifier | None = None
     approver: Actor | None = None
     evidence_ids: list[Identifier] = Field(min_length=1)
+    evidence_roles: list[BreakEvidenceRole] = Field(min_length=1)
 
     @model_validator(mode="after")
     def resolution_shape(self) -> BreakResolution:
+        if len(self.evidence_ids) != len(set(self.evidence_ids)):
+            raise ValueError("resolution evidence IDs must be unique")
+        if len(self.evidence_roles) != len(set(self.evidence_roles)):
+            raise ValueError("resolution evidence roles must be unique")
         if self.resolution_type == "RECONCILIATION_PASS":
             if self.reconciliation_run_id is None:
                 raise ValueError("reconciliation-pass resolution requires reconciliation_run_id")
@@ -1220,6 +1376,13 @@ class BreakResolution(ContractModel):
                 raise ValueError("non-action disposition must be approved by a human")
             if self.reconciliation_run_id is not None:
                 raise ValueError("non-action resolution must not carry reconciliation_run_id")
+            if "DISPOSITION_APPROVAL" not in self.evidence_roles:
+                raise ValueError("non-action resolution requires disposition evidence role")
+        if (
+            self.resolution_type == "RECONCILIATION_PASS"
+            and "RECONCILIATION_RESULT" not in self.evidence_roles
+        ):
+            raise ValueError("reconciliation-pass resolution requires reconciliation evidence role")
         return self
 
 
@@ -1246,8 +1409,10 @@ def _expected_break_severity(
 ) -> BreakSeverity:
     expected = _BREAK_FAMILY_POLICY[family]
     if expected[3] == "MISSING_SOURCE_BY_OBSERVATION_KIND":
-        if severity_context is None:
-            raise ValueError("missing-source breaks require severity_context")
+        if severity_context not in {"EXECUTION", "CONFIRMATION", "BOOKING"}:
+            raise ValueError(
+                "missing-source breaks require EXECUTION, CONFIRMATION, or BOOKING context"
+            )
         return "MEDIUM" if severity_context == "CONFIRMATION" else "HIGH"
     if severity_context is not None:
         raise ValueError("fixed-severity breaks must not carry severity_context")
@@ -1278,6 +1443,7 @@ class TradeBreak(ContractModel):
     evaluated_field_paths: list[BreakFieldPath] = Field(min_length=1)
     comparisons: list[BreakComparison] = Field(min_length=1)
     evidence: list[BreakEvidence] = Field(min_length=1)
+    missing_source_expectation: MissingSourceExpectation | None = None
     state: BreakLifecycleState
     previous_state: BreakLifecycleState | None
     transition_reason: BreakTransitionReason
@@ -1296,6 +1462,16 @@ class TradeBreak(ContractModel):
         if self.severity != _expected_break_severity(self.family, self.severity_context):
             raise ValueError("severity must match the deterministic family severity rule")
 
+        if self.family == "MISSING_REQUIRED_SOURCE":
+            if self.missing_source_expectation is None:
+                raise ValueError("missing-source breaks require a typed source expectation")
+            if self.severity_context != self.missing_source_expectation.expected_observation_kind:
+                raise ValueError("severity_context must match expected missing source kind")
+            if self.detected_at < self.missing_source_expectation.expected_by:
+                raise ValueError("missing-source break must be detected after its arrival window")
+        elif self.missing_source_expectation is not None:
+            raise ValueError("only missing-source breaks may carry a source expectation")
+
         source_ids = [source.source_observation_id for source in self.source_version_set]
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("source_version_set observation IDs must be unique")
@@ -1305,6 +1481,13 @@ class TradeBreak(ContractModel):
                 self.portfolio_id,
             ):
                 raise ValueError("source_version_set contains a source outside break scope")
+        if self.family == "MISSING_REQUIRED_SOURCE":
+            assert self.missing_source_expectation is not None
+            if any(
+                source.observation_kind == self.missing_source_expectation.expected_observation_kind
+                for source in self.source_version_set
+            ):
+                raise ValueError("missing-source expectation must not have an available source")
 
         evaluated_paths = self.evaluated_field_paths
         if len(evaluated_paths) != len(set(evaluated_paths)):
@@ -1318,11 +1501,24 @@ class TradeBreak(ContractModel):
         evidence_ids = [item.evidence_id for item in self.evidence]
         if len(evidence_ids) != len(set(evidence_ids)):
             raise ValueError("evidence IDs must be unique")
+        indexed_evidence = {item.evidence_id: item for item in self.evidence}
         required_roles = set(expected_definition[4])
         actual_roles = {item.role for item in self.evidence}
         if not required_roles.issubset(actual_roles):
             missing_roles = sorted(required_roles - actual_roles)
             raise ValueError(f"evidence is missing required roles: {missing_roles}")
+        if self.family == "MISSING_REQUIRED_SOURCE":
+            assert self.missing_source_expectation is not None
+            watermark_evidence = next(
+                item for item in self.evidence if item.role == "INGESTION_WATERMARK"
+            )
+            expected_source_evidence = next(
+                item for item in self.evidence if item.role == "EXPECTED_SOURCE"
+            )
+            if watermark_evidence.captured_at != self.missing_source_expectation.watermark_at:
+                raise ValueError("ingestion watermark evidence must match watermark_at")
+            if expected_source_evidence.field_path != self.missing_source_expectation.field_path:
+                raise ValueError("expected source evidence must match the typed field_path")
         indexed_sources = {
             source.source_observation_id: source for source in self.source_version_set
         }
@@ -1332,6 +1528,27 @@ class TradeBreak(ContractModel):
             matched_source = indexed_sources.get(item.source_observation_id)
             if matched_source is None or item.source_version != matched_source.source_version:
                 raise ValueError("evidence source reference must match source_version_set")
+
+        allowed_comparisons = set(_BREAK_COMPARISON_POLICY[self.family])
+        allowed_comparison_roles = _BREAK_COMPARISON_EVIDENCE_ROLES[self.family]
+        for comparison in self.comparisons:
+            if (comparison.field_path, comparison.value_type) not in allowed_comparisons:
+                raise ValueError(
+                    "comparison field_path and value_type must match the selected break family"
+                )
+            if len(comparison.evidence_ids) != len(set(comparison.evidence_ids)):
+                raise ValueError("comparison evidence IDs must be unique")
+            for evidence_id in comparison.evidence_ids:
+                if evidence_id not in indexed_evidence:
+                    raise ValueError("comparison evidence IDs must reference break evidence")
+                item = indexed_evidence[evidence_id]
+                if item.field_path != comparison.field_path:
+                    raise ValueError("comparison evidence must bind to the comparison field_path")
+                if item.role not in allowed_comparison_roles:
+                    raise ValueError("comparison evidence role is not allowed for this family")
+        for item in self.evidence:
+            if item.field_path is not None and item.field_path not in set(evaluated_paths):
+                raise ValueError("evidence field_path must be one of evaluated_field_paths")
 
         expected_ordering_key = (
             _BREAK_MATERIALITY_RANK[self.priority.materiality_band],
@@ -1359,16 +1576,31 @@ class TradeBreak(ContractModel):
                 raise ValueError("resolved breaks require resolved_at and resolution evidence")
             if self.resolved_at < self.state_changed_at:
                 raise ValueError("resolved_at must not precede state_changed_at")
-            resolution_roles = {item.role for item in self.evidence}
+            allowed_resolution_types = _BREAK_ALLOWED_RESOLUTION_TYPES[self.family]
+            if self.resolution.resolution_type not in allowed_resolution_types:
+                raise ValueError("resolution_type is not permitted by the selected break family")
+            resolution_evidence = []
+            for evidence_id in self.resolution.evidence_ids:
+                if evidence_id not in indexed_evidence:
+                    raise ValueError("resolution evidence IDs must reference break evidence")
+                item = indexed_evidence[evidence_id]
+                resolution_evidence.append(item)
+            resolution_roles = {item.role for item in resolution_evidence}
+            if resolution_roles != set(self.resolution.evidence_roles):
+                raise ValueError("resolution evidence_roles must match cited evidence IDs")
             if self.resolution.resolution_type == "RECONCILIATION_PASS":
                 if "RECONCILIATION_RESULT" not in resolution_roles:
                     raise ValueError(
                         "reconciliation-pass resolution requires reconciliation evidence"
                     )
+                if self.resolution.reconciliation_run_id != self.reconciliation_run_id:
+                    raise ValueError(
+                        "reconciliation-pass resolution must reference the break reconciliation run"
+                    )
             elif "DISPOSITION_APPROVAL" not in resolution_roles:
                 raise ValueError("non-action resolution requires disposition evidence")
-            if not set(self.resolution.evidence_ids).issubset(set(evidence_ids)):
-                raise ValueError("resolution evidence IDs must reference break evidence")
+            if any(self.resolved_at < item.captured_at for item in resolution_evidence):
+                raise ValueError("resolved_at must follow every cited resolution evidence capture")
         elif self.resolved_at is not None or self.resolution is not None:
             raise ValueError("only resolved breaks may carry resolution fields")
         return self

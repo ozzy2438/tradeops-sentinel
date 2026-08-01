@@ -32,6 +32,51 @@
     "productType": {
       "$ref": "common.schema.json#/$defs/productType"
     },
+    "missingSourceExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_observation_kind",
+        "expected_source_system",
+        "field_path",
+        "arrival_window_rule_version",
+        "watermark_at",
+        "expected_by"
+      ],
+      "properties": {
+        "expected_observation_kind": {
+          "enum": ["EXECUTION", "CONFIRMATION", "BOOKING"]
+        },
+        "expected_source_system": {"$ref": "common.schema.json#/$defs/sourceSystem"},
+        "field_path": {"$ref": "#/$defs/breakFieldPath"},
+        "arrival_window_rule_version": {"const": "1.0.0"},
+        "watermark_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+        "expected_by": {"$ref": "common.schema.json#/$defs/timestamp"}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "expected_observation_kind": {"const": "EXECUTION"},
+            "expected_source_system": {"const": "FIX_EXECUTION"},
+            "field_path": {"const": "/payload/execution_status"}
+          }
+        },
+        {
+          "properties": {
+            "expected_observation_kind": {"const": "CONFIRMATION"},
+            "expected_source_system": {"const": "FPML_CONFIRMATION"},
+            "field_path": {"const": "/payload/confirmation_status"}
+          }
+        },
+        {
+          "properties": {
+            "expected_observation_kind": {"const": "BOOKING"},
+            "expected_source_system": {"const": "MOCK_LEGACY_BOOKING"},
+            "field_path": {"const": "/payload/booking_status"}
+          }
+        }
+      ]
+    },
     "sourceReference": {
       "type": "object",
       "additionalProperties": false,
@@ -95,14 +140,15 @@
     "comparison": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["field_path", "value_type", "expected_value", "observed_value", "tolerance", "normalisation_rule_version"],
+      "required": ["field_path", "value_type", "expected_value", "observed_value", "tolerance", "normalisation_rule_version", "evidence_ids"],
       "properties": {
         "field_path": {"$ref": "#/$defs/breakFieldPath"},
-        "value_type": {"enum": ["ABSENCE", "COUNT", "CURRENCY_PAIR", "SIDE", "DECIMAL", "DATE", "LIFECYCLE_STATUS", "READBACK"]},
+        "value_type": {"enum": ["ABSENCE", "COUNT", "CURRENCY_PAIR", "SIDE", "DECIMAL", "DATE", "LIFECYCLE_STATUS", "READBACK", "SOURCE_IDENTITY"]},
         "expected_value": {"type": "string", "minLength": 1},
         "observed_value": {"type": "string", "minLength": 1},
         "tolerance": {"$ref": "#/$defs/tolerance"},
-        "normalisation_rule_version": {"const": "1.0.0"}
+        "normalisation_rule_version": {"const": "1.0.0"},
+        "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/identifier"}}
       }
     },
     "priority": {
@@ -132,13 +178,14 @@
     "resolution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resolution_type", "reconciliation_run_id", "disposition_id", "approver", "evidence_ids"],
+      "required": ["resolution_type", "reconciliation_run_id", "disposition_id", "approver", "evidence_ids", "evidence_roles"],
       "properties": {
         "resolution_type": {"enum": ["RECONCILIATION_PASS", "OWNER_APPROVED_NON_ACTION"]},
         "reconciliation_run_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]},
         "disposition_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]},
         "approver": {"anyOf": [{"$ref": "#/$defs/actor"}, {"type": "null"}]},
-        "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/identifier"}}
+        "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/identifier"}},
+        "evidence_roles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/breakEvidenceRole"}}
       },
       "oneOf": [
         {
@@ -146,7 +193,8 @@
             "resolution_type": {"const": "RECONCILIATION_PASS"},
             "reconciliation_run_id": {"type": "string"},
             "disposition_id": {"type": "null"},
-            "approver": {"type": "null"}
+            "approver": {"type": "null"},
+            "evidence_roles": {"contains": {"const": "RECONCILIATION_RESULT"}}
           }
         },
         {
@@ -154,9 +202,22 @@
             "resolution_type": {"const": "OWNER_APPROVED_NON_ACTION"},
             "reconciliation_run_id": {"type": "null"},
             "disposition_id": {"type": "string"},
-            "approver": {"type": "object", "properties": {"identity_type": {"const": "HUMAN"}}, "required": ["identity_type"]}
+            "approver": {"type": "object", "properties": {"identity_type": {"const": "HUMAN"}}, "required": ["identity_type"]},
+            "evidence_roles": {"contains": {"const": "DISPOSITION_APPROVAL"}}
           }
         }
+      ]
+    }
+    ,"reconciliationResolution": {
+      "allOf": [
+        {"$ref": "#/$defs/resolution"},
+        {"properties": {"resolution_type": {"const": "RECONCILIATION_PASS"}}}
+      ]
+    },
+    "ownerApprovedNonActionResolution": {
+      "allOf": [
+        {"$ref": "#/$defs/resolution"},
+        {"properties": {"resolution_type": {"const": "OWNER_APPROVED_NON_ACTION"}}}
       ]
     }
   },
@@ -186,6 +247,7 @@
     "evaluated_field_paths",
     "comparisons",
     "evidence",
+    "missing_source_expectation",
     "state",
     "previous_state",
     "transition_reason",
@@ -220,6 +282,7 @@
     "evaluated_field_paths": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/breakFieldPath"}},
     "comparisons": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/comparison"}},
     "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/evidence"}},
+    "missing_source_expectation": {"anyOf": [{"$ref": "#/$defs/missingSourceExpectation"}, {"type": "null"}]},
     "state": {"$ref": "#/$defs/lifecycleState"},
     "previous_state": {"anyOf": [{"$ref": "#/$defs/lifecycleState"}, {"type": "null"}]},
     "transition_reason": {"$ref": "#/$defs/transitionReason"},
@@ -239,6 +302,9 @@
             "condition_code": {"const": "MISSING_SOURCE_AFTER_WATERMARK"},
             "severity": {"const": "MEDIUM"},
             "severity_context": {"const": "CONFIRMATION"},
+            "missing_source_expectation": {"$ref": "#/$defs/missingSourceExpectation"},
+            "comparisons": {"items": {"properties": {"field_path": {"const": "/payload/confirmation_status"}, "value_type": {"const": "ABSENCE"}}}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "INGESTION_WATERMARK"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "EXPECTED_SOURCE"}}, "required": ["role"]}}]}
           }
         },
@@ -247,7 +313,13 @@
             "family": {"const": "MISSING_REQUIRED_SOURCE"},
             "condition_code": {"const": "MISSING_SOURCE_AFTER_WATERMARK"},
             "severity": {"const": "HIGH"},
-            "severity_context": {"enum": ["EXECUTION", "TRADE_CAPTURE", "BOOKING"]},
+            "severity_context": {"enum": ["EXECUTION", "BOOKING"]},
+            "missing_source_expectation": {"$ref": "#/$defs/missingSourceExpectation"},
+            "comparisons": {"items": {"oneOf": [
+              {"properties": {"field_path": {"const": "/payload/execution_status"}, "value_type": {"const": "ABSENCE"}}},
+              {"properties": {"field_path": {"const": "/payload/booking_status"}, "value_type": {"const": "ABSENCE"}}}
+            ]}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "INGESTION_WATERMARK"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "EXPECTED_SOURCE"}}, "required": ["role"]}}]}
           }
         },
@@ -257,6 +329,9 @@
             "condition_code": {"const": "LINKAGE_CANDIDATE_SCOPE_INVARIANT"},
             "severity": {"const": "HIGH"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"properties": {"field_path": {"const": "/linkage/trade_id"}, "value_type": {"const": "COUNT"}}}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "CANDIDATE_LINK"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "LINKAGE_DECISION"}}, "required": ["role"]}}]}
           }
         },
@@ -266,6 +341,13 @@
             "condition_code": {"const": "DUPLICATE_SOURCE_IDENTITY_CONTENT"},
             "severity": {"const": "HIGH"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"oneOf": [
+              {"properties": {"field_path": {"const": "/payload/source_business_key"}, "value_type": {"const": "SOURCE_IDENTITY"}}},
+              {"properties": {"field_path": {"const": "/payload/source_version"}, "value_type": {"const": "SOURCE_IDENTITY"}}},
+              {"properties": {"field_path": {"const": "/payload/content_hash"}, "value_type": {"const": "SOURCE_IDENTITY"}}}
+            ]}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "SOURCE_PAYLOAD_PAIR"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "SOURCE_METADATA"}}, "required": ["role"]}}]}
           }
         },
@@ -275,6 +357,12 @@
             "condition_code": {"const": "EXACT_CURRENCY_PAIR_SIDE"},
             "severity": {"const": "CRITICAL"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"oneOf": [
+              {"properties": {"field_path": {"const": "/payload/currency_pair"}, "value_type": {"const": "CURRENCY_PAIR"}}},
+              {"properties": {"field_path": {"const": "/payload/side"}, "value_type": {"const": "SIDE"}}}
+            ]}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "FIELD_COMPARISON"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "NORMALISATION_RULE"}}, "required": ["role"]}}]}
           }
         },
@@ -284,6 +372,13 @@
             "condition_code": {"const": "DECIMAL_OUTSIDE_TOLERANCE"},
             "severity": {"const": "CRITICAL"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"oneOf": [
+              {"properties": {"field_path": {"const": "/payload/base_amount"}, "value_type": {"const": "DECIMAL"}}},
+              {"properties": {"field_path": {"const": "/payload/terms_amount"}, "value_type": {"const": "DECIMAL"}}},
+              {"properties": {"field_path": {"const": "/payload/quoted_rate"}, "value_type": {"const": "DECIMAL"}}}
+            ]}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "DECIMAL_COMPARISON"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "NORMALISATION_RULE"}}, "required": ["role"]}}]}
           }
         },
@@ -293,6 +388,12 @@
             "condition_code": {"const": "EXACT_TRADE_VALUE_DATE"},
             "severity": {"const": "HIGH"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"oneOf": [
+              {"properties": {"field_path": {"const": "/payload/trade_date"}, "value_type": {"const": "DATE"}}},
+              {"properties": {"field_path": {"const": "/payload/value_date"}, "value_type": {"const": "DATE"}}}
+            ]}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "DATE_COMPARISON"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "NORMALISATION_RULE"}}, "required": ["role"]}}]}
           }
         },
@@ -302,6 +403,9 @@
             "condition_code": {"const": "ALLOWED_LIFECYCLE_RELATION"},
             "severity": {"const": "HIGH"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"properties": {"field_path": {"const": "/payload/lifecycle_status"}, "value_type": {"const": "LIFECYCLE_STATUS"}}}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "LIFECYCLE_RELATION"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "NORMALISATION_RULE"}}, "required": ["role"]}}]}
           }
         },
@@ -311,6 +415,13 @@
             "condition_code": {"const": "POST_ACTION_READBACK_RECONCILIATION"},
             "severity": {"const": "CRITICAL"},
             "severity_context": {"type": "null"},
+            "missing_source_expectation": {"type": "null"},
+            "comparisons": {"items": {"oneOf": [
+              {"properties": {"field_path": {"const": "/payload/action_target"}, "value_type": {"const": "READBACK"}}},
+              {"properties": {"field_path": {"const": "/payload/action_status"}, "value_type": {"const": "READBACK"}}},
+              {"properties": {"field_path": {"const": "/payload/book_id"}, "value_type": {"const": "READBACK"}}}
+            ]}},
+            "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "ACTION_INSTRUCTION"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "PRE_ACTION_READ"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "POST_ACTION_READ"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "CHANGED_FIELD_DIFF"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "RECONCILIATION_RESULT"}}, "required": ["role"]}}]}
           }
         }

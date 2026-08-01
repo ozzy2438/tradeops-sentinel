@@ -20,11 +20,12 @@
   "priority": {"materiality_band": "UNASSESSED", "deadline_status": "OVERDUE", "case_age_seconds": 3600, "ordering_key": [2, 2, 1, -3600]},
   "source_version_set": [{"source_observation_id": "obs_trade_capture_001", "observation_kind": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_other", "source_portfolio_id": "portfolio_sydney", "source_version": "1", "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"}],
   "evaluated_field_paths": ["/payload/execution_status"],
-  "comparisons": [{"field_path": "/payload/execution_status", "value_type": "ABSENCE", "expected_value": "present", "observed_value": "absent_after_watermark", "tolerance": {"mode": "NONE", "value": null}, "normalisation_rule_version": "1.0.0"}],
+  "comparisons": [{"field_path": "/payload/execution_status", "value_type": "ABSENCE", "expected_value": "present", "observed_value": "absent_after_watermark", "tolerance": {"mode": "NONE", "value": null}, "normalisation_rule_version": "1.0.0", "evidence_ids": ["evidence_expected_source_001"]}],
   "evidence": [
     {"evidence_id": "evidence_watermark_001", "role": "INGESTION_WATERMARK", "content_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222", "captured_at": "2026-08-01T09:00:00Z", "source_observation_id": null, "source_version": null, "field_path": "/payload/execution_status"},
     {"evidence_id": "evidence_expected_source_001", "role": "EXPECTED_SOURCE", "content_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333", "captured_at": "2026-08-01T09:00:00Z", "source_observation_id": null, "source_version": null, "field_path": "/payload/execution_status"}
   ],
+  "missing_source_expectation": {"expected_observation_kind": "EXECUTION", "expected_source_system": "FIX_EXECUTION", "field_path": "/payload/execution_status", "arrival_window_rule_version": "1.0.0", "watermark_at": "2026-08-01T09:00:00Z", "expected_by": "2026-08-01T09:00:00Z"},
   "state": "OPEN",
   "previous_state": null,
   "transition_reason": "DETECTED",
