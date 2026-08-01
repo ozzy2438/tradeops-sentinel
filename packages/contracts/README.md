@@ -61,7 +61,9 @@ later calendar-aware rule must be versioned.
 ## Source-of-truth boundary
 
 `source-of-truth-policy.schema.json` is the machine-readable field ownership
-matrix. A source is authoritative only for the facts it owns. Conflicting
+matrix for the exact sixteen MVP field paths: the thirteen canonical fields,
+confirmation and booking status, and linkage trade ID. A source is
+authoritative only for the facts it owns. Conflicting
 source values remain evidence and produce a deterministic conflict outcome;
 the canonical projection never resolves disagreement by majority vote or LLM
 judgement. Every selected canonical field carries source observation ID,

@@ -119,6 +119,9 @@ _CANONICAL_FIELD_NAMES = (
     "counterparty_id",
     "book_id",
 )
+_SOURCE_OF_TRUTH_FIELD_PATHS = tuple(
+    f"/payload/{field_name}" for field_name in _CANONICAL_FIELD_NAMES
+) + ("/payload/confirmation_status", "/payload/booking_status", "/linkage/trade_id")
 
 
 class ContractModel(BaseModel):
@@ -804,6 +807,15 @@ class SourceOfTruthPolicy(ContractModel):
         paths = [rule.field_path for rule in self.field_rules]
         if len(paths) != len(set(paths)):
             raise ValueError("source-of-truth field paths must be unique")
+        expected_paths = set(_SOURCE_OF_TRUTH_FIELD_PATHS)
+        actual_paths = set(paths)
+        if actual_paths != expected_paths:
+            missing = sorted(expected_paths - actual_paths)
+            unexpected = sorted(actual_paths - expected_paths)
+            raise ValueError(
+                f"source-of-truth field paths must match the approved set; "
+                f"missing={missing}, unexpected={unexpected}"
+            )
         return self
 
 

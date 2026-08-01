@@ -126,6 +126,18 @@ def test_source_of_truth_policy_has_unique_field_ownership() -> None:
         assert set(rule.trusted_sources).issubset(rule.source_precedence)
 
 
+def test_source_of_truth_policy_requires_exact_field_path_set() -> None:
+    document = _load_json(EXAMPLES / "valid" / "source-of-truth-policy.json")
+    document["field_rules"] = [
+        rule for rule in document["field_rules"] if rule["field_path"] != "/payload/book_id"
+    ]
+
+    with pytest.raises(ValidationError):
+        _validate_json_schema("source-of-truth-policy", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("source-of-truth-policy", document)
+
+
 @pytest.mark.parametrize(
     ("contract", "filename", "path"),
     [
