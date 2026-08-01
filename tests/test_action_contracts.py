@@ -92,6 +92,54 @@ def test_exact_approved_values_are_byte_exact_in_hash_and_idempotency() -> None:
     validate_contract_document("action-instruction", second)
 
 
+def test_timestamp_mapping_offsets_match_typed_canonical_form() -> None:
+    representations = (
+        (
+            "2026-08-01T07:00:00Z",
+            "2026-08-01T07:00:30Z",
+            "2026-08-01T08:00:00Z",
+            "2026-08-01T07:30:00Z",
+        ),
+        (
+            "2026-08-01T07:00:00+00:00",
+            "2026-08-01T07:00:30+00:00",
+            "2026-08-01T08:00:00+00:00",
+            "2026-08-01T07:30:00+00:00",
+        ),
+        (
+            "2026-08-01T17:00:00+10:00",
+            "2026-08-01T17:00:30+10:00",
+            "2026-08-01T18:00:00+10:00",
+            "2026-08-01T17:30:00+10:00",
+        ),
+    )
+    hashes: list[str] = []
+    idempotency_keys: list[str] = []
+
+    for issued_at, not_before, expires_at, lease_expires_at in representations:
+        document = deepcopy(_load("action-instruction.json"))
+        document["issued_at"] = issued_at
+        document["not_before"] = not_before
+        document["expires_at"] = expires_at
+        document["final_submit_control"] = {
+            "control_type": "LEASE",
+            "control_reference": "lease_001",
+            "lease_expires_at": lease_expires_at,
+        }
+        document["content_hash"] = compute_action_content_hash(document)
+        document["idempotency_key"] = compute_idempotency_key(document)
+
+        _validate_schema("action-instruction", document)
+        model = validate_contract_document("action-instruction", document)
+        assert compute_action_content_hash(model) == document["content_hash"]
+        assert compute_idempotency_key(model) == document["idempotency_key"]
+        hashes.append(document["content_hash"])
+        idempotency_keys.append(document["idempotency_key"])
+
+    assert len(set(hashes)) == 1
+    assert len(set(idempotency_keys)) == 1
+
+
 def test_action_references_must_match_instruction_scope() -> None:
     source_scope_mismatch = deepcopy(_load("action-instruction.json"))
     source_scope_mismatch["source_observation_versions"][0]["scope"]["tenant_id"] = "tenant_other"

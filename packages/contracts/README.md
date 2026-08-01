@@ -37,8 +37,11 @@ version, CAS/LEASE control reference, validity window, nonce, idempotency key,
 content hash, revocation lookup, and evidence-manifest reference.
 
 The canonical encoding is version 1 JSON with sorted keys, compact separators,
-UTF-8, and typed datetime values rendered in UTC with `Z`. Arbitrary string
-values, including `exact_approved_new_value` and
+and UTF-8. Typed datetime values, plus strings at the explicitly-known action
+timestamp fields (`issued_at`, `not_before`, `expires_at`, and
+`final_submit_control.lease_expires_at`), including non-zero offsets, are
+rendered in UTC with `Z`.
+Arbitrary string values, including `exact_approved_new_value` and
 `normalised_expected_old_value`, remain byte-exact; the encoder never guesses
 that a string containing `T` is a timestamp. The unordered
 `source_observation_versions` set is sorted by the stable tuple

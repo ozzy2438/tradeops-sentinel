@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import UTC, datetime
 from hashlib import sha256
 from typing import Annotated, Any, Literal, TypeAlias
 
@@ -213,20 +213,44 @@ def _canonical_json_bytes(document: Mapping[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _normalise_json_value(value: Any) -> Any:
-    """Normalise typed values used by canonical encoding v1.
+_CANONICAL_TIMESTAMP_PATHS = frozenset(
+    {
+        ("issued_at",),
+        ("not_before",),
+        ("expires_at",),
+        ("final_submit_control", "lease_expires_at"),
+    }
+)
 
-    Only actual ``datetime`` values are timestamp-normalised.  Strings remain
-    byte-exact because action values are opaque approved payload values and
-    must not collide through heuristic ISO parsing.
+
+def _normalise_json_value(value: Any, *, path: tuple[str, ...] = ()) -> Any:
+    """Normalise values used by canonical encoding v1.
+
+    Actual ``datetime`` values and strings at the explicitly-known timestamp
+    paths are rendered in UTC with ``Z``. Other strings remain byte-exact
+    because action values are opaque approved payload values and must not
+    collide through heuristic ISO parsing.
     """
 
     if isinstance(value, datetime):
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(UTC)
         return value.isoformat().replace("+00:00", "Z")
     if isinstance(value, Mapping):
-        return {key: _normalise_json_value(item) for key, item in value.items()}
+        return {
+            key: _normalise_json_value(item, path=path + (str(key),)) for key, item in value.items()
+        }
     if isinstance(value, list):
-        return [_normalise_json_value(item) for item in value]
+        return [_normalise_json_value(item, path=path) for item in value]
+    if isinstance(value, str) and path in _CANONICAL_TIMESTAMP_PATHS:
+        timestamp_text = f"{value[:-1]}+00:00" if value.endswith("Z") else value
+        try:
+            parsed = datetime.fromisoformat(timestamp_text)
+        except ValueError:
+            return value
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return value
+        return _normalise_json_value(parsed, path=path)
     return value
 
 
