@@ -11,6 +11,10 @@
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "settlementRuleVersion": {
+      "type": "string",
+      "const": "1.0.0"
+    },
     "identifier": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{2,127}$"
@@ -166,7 +170,7 @@
           "$ref": "#/$defs/productType"
         },
         "settlement_rule_version": {
-          "$ref": "#/$defs/semanticVersion"
+          "$ref": "#/$defs/settlementRuleVersion"
         },
         "source_trade_id": {
           "$ref": "#/$defs/identifier"

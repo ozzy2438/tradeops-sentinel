@@ -8,7 +8,6 @@
       "required": [
         "product_type",
         "settlement_rule_version",
-        "settlement_rule_version",
         "base_currency",
         "terms_currency",
         "side",
@@ -26,7 +25,7 @@
           "$ref": "common.schema.json#/$defs/productType"
         },
         "settlement_rule_version": {
-          "$ref": "common.schema.json#/$defs/semanticVersion"
+          "$ref": "common.schema.json#/$defs/settlementRuleVersion"
         },
         "base_currency": {
           "$ref": "common.schema.json#/$defs/currency"
@@ -71,6 +70,7 @@
       "additionalProperties": false,
       "required": [
         "product_type",
+        "settlement_rule_version",
         "base_currency",
         "terms_currency",
         "side",
@@ -85,43 +85,82 @@
       ],
       "properties": {
         "product_type": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/product_type"}}}
+          ]
         },
         "settlement_rule_version": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/settlement_rule_version"}}}
+          ]
         },
         "base_currency": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/base_currency"}}}
+          ]
         },
         "terms_currency": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/terms_currency"}}}
+          ]
         },
         "side": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/side"}}}
+          ]
         },
         "base_amount": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/base_amount"}}}
+          ]
         },
         "terms_amount": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/terms_amount"}}}
+          ]
         },
         "quoted_rate": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/quoted_rate"}}}
+          ]
         },
         "trade_date": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/trade_date"}}}
+          ]
         },
         "value_date": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/value_date"}}}
+          ]
         },
         "lifecycle_status": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/lifecycle_status"}}}
+          ]
         },
         "counterparty_id": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/counterparty_id"}}}
+          ]
         },
         "book_id": {
-          "$ref": "common.schema.json#/$defs/fieldProvenance"
+          "allOf": [
+            {"$ref": "common.schema.json#/$defs/fieldProvenance"},
+            {"properties": {"field_path": {"const": "/payload/book_id"}}}
+          ]
         }
       }
     }

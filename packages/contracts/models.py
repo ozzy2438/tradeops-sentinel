@@ -76,6 +76,7 @@ SemanticVersion = Annotated[
     str,
     StringConstraints(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$"),
 ]
+SettlementRuleVersion: TypeAlias = Literal["1.0.0"]
 SourceVersion = Annotated[
     str,
     StringConstraints(pattern=r"^[1-9][0-9]{0,18}$"),
@@ -159,7 +160,7 @@ class Actor(ContractModel):
 
 class FxPayload(ContractModel):
     product_type: ProductType
-    settlement_rule_version: SemanticVersion
+    settlement_rule_version: SettlementRuleVersion
     source_trade_id: Identifier
     base_currency: Currency
     terms_currency: Currency
@@ -336,7 +337,7 @@ class BookingObservation(ObservationEnvelope):
 
 class CanonicalFields(ContractModel):
     product_type: ProductType
-    settlement_rule_version: SemanticVersion
+    settlement_rule_version: SettlementRuleVersion
     base_currency: Currency
     terms_currency: Currency
     side: Side
@@ -405,6 +406,17 @@ class FieldProvenanceMap(ContractModel):
     counterparty_id: FieldProvenance
     book_id: FieldProvenance
 
+    @model_validator(mode="after")
+    def field_paths_match_keys(self) -> FieldProvenanceMap:
+        for field_name in _CANONICAL_FIELD_NAMES:
+            provenance = getattr(self, field_name)
+            expected_path = f"/payload/{field_name}"
+            if provenance.field_path != expected_path:
+                raise ValueError(
+                    f"field_provenance.{field_name}.field_path must be {expected_path}"
+                )
+        return self
+
 
 class CanonicalTrade(ContractModel):
     schema_version: SchemaVersion = "1.0.0"
@@ -467,6 +479,9 @@ def _validate_source_version_set_scope(
     portfolio_id: str,
     source_watermark: AwareTimestamp | None = None,
 ) -> None:
+    source_ids = [item.observation_id for item in source_version_set]
+    if len(source_ids) != len(set(source_ids)):
+        raise ValueError("source_version_set observation_id values must be unique")
     indexed_sources = {item.observation_id: item for item in source_version_set}
     for item in source_version_set:
         if (item.source_tenant_id, item.source_portfolio_id) != (tenant_id, portfolio_id):

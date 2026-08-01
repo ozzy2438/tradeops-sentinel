@@ -47,13 +47,16 @@ times must not be after the envelope `ingest_time`; an FX Forward's future
 `value_date` remains an economic date and is not treated as data availability.
 Canonical state requires `source_watermark <= as_of_time`, every provenance
 reference to be present in `source_version_set`, and every `ingested_at` to be
-within the watermark. Decimal values carry an explicit scale; the Pydantic
+within the watermark. Each `source_version_set` observation ID is unique even
+when source versions differ. Decimal values carry an explicit scale; the Pydantic
 model requires the lexical fractional precision to equal that scale. Amount
 currencies must match base/terms currencies, and the rate orientation is fixed
 to terms currency per base currency. Settlement rule `1.0.0` bounds Spot to a
 T+0-to-T+2 business-day envelope represented by at most four calendar days in
 this calendar-free contract, while Forward requires a strictly future value
-date. A later calendar-aware rule must be versioned.
+date. Only settlement rule version `1.0.0` is supported in TS-3; unknown
+settlement rule versions fail closed until a versioned rule is implemented. A
+later calendar-aware rule must be versioned.
 
 ## Source-of-truth boundary
 

@@ -308,3 +308,55 @@ def test_canonical_provenance_must_match_top_level_scope() -> None:
     state["source_version_set"][0]["source_portfolio_id"] = "portfolio_sydney"
     with pytest.raises(PydanticValidationError):
         validate_contract_document("canonical-trade-state", state)
+
+
+def test_field_provenance_key_must_match_field_path() -> None:
+    document = _load_json(EXAMPLES / "valid" / "canonical-trade-spot.json")
+    document["field_provenance"]["product_type"]["field_path"] = "/payload/book_id"
+
+    with pytest.raises(ValidationError):
+        _validate_json_schema("canonical-trade", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("canonical-trade", document)
+
+
+def test_source_version_set_rejects_duplicate_observation_ids() -> None:
+    document = _load_json(EXAMPLES / "valid" / "canonical-trade-state-spot.json")
+    duplicate = dict(document["source_version_set"][1])
+    duplicate["source_version"] = "2"
+    duplicate["content_hash"] = (
+        "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+    )
+    document["source_version_set"].append(duplicate)
+    document["field_provenance"]["lifecycle_status"]["source_version"] = "2"
+
+    _validate_json_schema("canonical-trade-state", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("canonical-trade-state", document)
+
+
+@pytest.mark.parametrize(
+    ("contract", "filename", "path"),
+    [
+        ("execution-observation", "execution-spot.json", ("payload", "settlement_rule_version")),
+        ("canonical-trade", "canonical-trade-spot.json", ("state", "settlement_rule_version")),
+        (
+            "canonical-trade-state",
+            "canonical-trade-state-spot.json",
+            ("state", "settlement_rule_version"),
+        ),
+    ],
+)
+def test_unsupported_settlement_rule_version_fails_closed(
+    contract: str, filename: str, path: tuple[str, ...]
+) -> None:
+    document = _load_json(EXAMPLES / "valid" / filename)
+    target: Any = document
+    for part in path[:-1]:
+        target = target[part]
+    target[path[-1]] = "9.9.9"
+
+    with pytest.raises(ValidationError):
+        _validate_json_schema(contract, document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document(contract, document)

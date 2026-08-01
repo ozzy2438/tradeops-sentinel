@@ -11,4 +11,6 @@ The valid observations and canonical projections cover both FX Spot and FX
 Forward and keep execution, trade capture, confirmation, and booking as
 separate observation kinds. The negative fixtures cover unsupported versions,
 temporal availability, decimal scale, deterministic linkage decision/reason
-combinations, and cross-scope candidates.
+combinations, cross-scope candidates, provenance scope, and duplicate source
+identity semantics. Targeted contract tests also assert field-provenance key
+binding and fail-closed settlement-rule version handling.
