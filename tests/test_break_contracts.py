@@ -62,13 +62,13 @@ def test_manifest_fixture_matrix_covers_every_family_for_spot_and_forward() -> N
     assert matrix["products"] == ["FX_SPOT", "FX_FORWARD"]
     assert {row["family"] for row in matrix["families"]} == expected_families
     for row in matrix["families"]:
-        filename = row["positive_fixture"]
-        assert manifest["valid"][filename] == "trade-break"
-        base = _break(filename)
-        assert base["family"] == row["family"]
-        for product_type in matrix["products"]:
-            document = copy.deepcopy(base)
-            document["product_type"] = product_type
+        for product_type, field in (("FX_SPOT", "spot_fixture"), ("FX_FORWARD", "forward_fixture")):
+            filename = row[field]
+            assert manifest["valid"][filename] == "trade-break"
+            document = _break(filename)
+            assert document["family"] == row["family"]
+            assert document["product_type"] == product_type
+            assert document["product_context"]["product_type"] == product_type
             _validate_schema("trade-break", document)
             validate_contract_document("trade-break", document)
 
@@ -139,6 +139,83 @@ def test_comparison_values_must_be_distinct() -> None:
         validate_contract_document("trade-break", document)
 
 
+def test_comparison_operands_must_bind_to_distinct_source_observations() -> None:
+    document = _break("trade-break-economic-forward.json")
+    document["comparisons"][0]["observed_source_observation_id"] = document["comparisons"][0][
+        "expected_source_observation_id"
+    ]
+    document["comparisons"][0]["observed_source_version"] = document["comparisons"][0][
+        "expected_source_version"
+    ]
+
+    _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
+def test_exact_value_types_reject_decimal_tolerance() -> None:
+    document = _break("trade-break-date-spot.json")
+    document["comparisons"][0]["tolerance"] = {
+        "mode": "ABSOLUTE_DECIMAL",
+        "value": "1",
+    }
+
+    with pytest.raises(ValidationError):
+        _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
+def test_product_context_is_bound_to_product_and_settlement_rule() -> None:
+    document = _break("trade-break-economic-forward.json")
+    document["product_type"] = "FX_SPOT"
+
+    with pytest.raises(ValidationError):
+        _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+    document = _break("trade-break-economic-forward.json")
+    document["product_type"] = "FX_SPOT"
+    document["product_context"]["product_type"] = "FX_SPOT"
+    document["product_context"]["value_date"] = "2026-08-10"
+    _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
+def test_duplicate_source_conflict_binds_key_version_and_content() -> None:
+    document = _break("trade-break-duplicate-source.json")
+    document["source_version_set"][1]["source_business_key"] = "trade_other_001"
+
+    _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
+def test_reconciliation_proof_binds_family_condition_and_pass_predicate() -> None:
+    document = _break("trade-break-resolved.json")
+    document["resolution"]["reconciliation_proof"]["family"] = "LIFECYCLE_STATUS_MISMATCH"
+
+    _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
+def test_comparison_paths_are_bound_to_the_approved_source_of_truth_matrix() -> None:
+    document = _break("trade-break-currency-side.json")
+    document["evaluated_field_paths"] = ["/payload/source_business_key"]
+    document["comparisons"][0]["field_path"] = "/payload/source_business_key"
+    document["comparisons"][0]["value_type"] = "SOURCE_IDENTITY"
+    for evidence in document["evidence"]:
+        evidence["field_path"] = "/payload/source_business_key"
+
+    with pytest.raises(ValidationError):
+        _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
 def test_taxonomy_exposes_exact_eight_families_and_fourteen_transitions() -> None:
     taxonomy = validate_contract_document(
         "break-taxonomy", _load(EXAMPLES / "valid" / "break-taxonomy.json")
@@ -184,14 +261,14 @@ def test_missing_confirmation_source_uses_medium_severity() -> None:
     document["severity_context"] = "CONFIRMATION"
     document["severity"] = "MEDIUM"
     document["priority"]["ordering_key"] = [2, 3, 1, -3600]
-    document["evaluated_field_paths"] = ["/payload/confirmation_status"]
-    document["comparisons"][0]["field_path"] = "/payload/confirmation_status"
-    document["evidence"][0]["field_path"] = "/payload/confirmation_status"
-    document["evidence"][1]["field_path"] = "/payload/confirmation_status"
+    document["evaluated_field_paths"] = ["/source/confirmation_observation"]
+    document["comparisons"][0]["field_path"] = "/source/confirmation_observation"
+    document["evidence"][0]["field_path"] = "/source/confirmation_observation"
+    document["evidence"][1]["field_path"] = "/source/confirmation_observation"
     document["missing_source_expectation"] = {
         "expected_observation_kind": "CONFIRMATION",
         "expected_source_system": "FPML_CONFIRMATION",
-        "field_path": "/payload/confirmation_status",
+        "field_path": "/source/confirmation_observation",
         "arrival_window_rule_version": "1.0.0",
         "watermark_at": "2026-08-01T09:00:00Z",
         "expected_by": "2026-08-01T09:00:00Z",
@@ -292,6 +369,7 @@ def test_date_break_requires_reconciliation_and_rejects_non_action() -> None:
         "approver": {"identity_type": "HUMAN", "actor_id": "human_owner"},
         "evidence_ids": ["evidence_reconciliation_pass_001"],
         "evidence_roles": ["DISPOSITION_APPROVAL"],
+        "reconciliation_proof": None,
     }
 
     with pytest.raises(ValidationError):
@@ -326,6 +404,7 @@ def test_missing_source_supports_human_non_action() -> None:
         "approver": {"identity_type": "HUMAN", "actor_id": "human_owner"},
         "evidence_ids": ["evidence_missing_disposition_001"],
         "evidence_roles": ["DISPOSITION_APPROVAL"],
+        "reconciliation_proof": None,
     }
 
     _validate_schema("trade-break", document)

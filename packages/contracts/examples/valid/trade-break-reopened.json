@@ -21,7 +21,12 @@
     "materiality_band": "MATERIAL",
     "deadline_status": "DUE",
     "case_age_seconds": 120,
-    "ordering_key": [1, 2, 2, -120]
+    "ordering_key": [
+      1,
+      2,
+      2,
+      -120
+    ]
   },
   "source_version_set": [
     {
@@ -31,7 +36,8 @@
       "source_tenant_id": "tenant_demo",
       "source_portfolio_id": "portfolio_sydney",
       "source_version": "1",
-      "content_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+      "content_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "source_business_key": "trade_fx_forward_002_source"
     },
     {
       "source_observation_id": "obs_confirmation_forward_002",
@@ -40,19 +46,32 @@
       "source_tenant_id": "tenant_demo",
       "source_portfolio_id": "portfolio_sydney",
       "source_version": "2",
-      "content_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+      "content_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "source_business_key": "trade_fx_forward_002_source"
     }
   ],
-  "evaluated_field_paths": ["/payload/value_date"],
+  "evaluated_field_paths": [
+    "/payload/value_date"
+  ],
   "comparisons": [
     {
       "field_path": "/payload/value_date",
       "value_type": "DATE",
       "expected_value": "2026-08-05",
       "observed_value": "2026-08-06",
-      "tolerance": {"mode": "NONE", "value": null},
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
       "normalisation_rule_version": "1.0.0",
-      "evidence_ids": ["evidence_date_compare_reopen_002", "evidence_date_rule_reopen_002"]
+      "evidence_ids": [
+        "evidence_date_compare_reopen_002",
+        "evidence_date_rule_reopen_002"
+      ],
+      "expected_source_observation_id": "obs_execution_forward_002",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_confirmation_forward_002",
+      "observed_source_version": "2"
     }
   ],
   "evidence": [
@@ -84,5 +103,12 @@
   "resolved_at": null,
   "resolution": null,
   "supersedes_break_id": "break_value_date_resolved_001",
-  "causal_label_id": null
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-15"
+  },
+  "duplicate_source_conflict": null
 }

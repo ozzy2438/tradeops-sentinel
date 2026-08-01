@@ -4,15 +4,15 @@
   "detection_rule_version": "1.0.0",
   "priority_rule_version": "1.0.0",
   "lifecycle_rule_version": "1.0.0",
-  "break_id": "break_economic_forward_001",
+  "break_id": "break_economic_forward_spot_001",
   "break_version": 1,
   "tenant_id": "tenant_demo",
   "portfolio_id": "portfolio_melbourne",
-  "correlation_id": "corr_break_economic_001",
-  "trade_id": "trade_fx_forward_001",
+  "correlation_id": "corr_break_economic_spot_001",
+  "trade_id": "trade_fx_forward_spot_001",
   "canonical_state_version": 2,
   "reconciliation_run_id": "run_recon_002",
-  "product_type": "FX_FORWARD",
+  "product_type": "FX_SPOT",
   "family": "ECONOMIC_VALUE_MISMATCH",
   "condition_code": "DECIMAL_OUTSIDE_TOLERANCE",
   "severity": "CRITICAL",
@@ -37,7 +37,7 @@
       "source_portfolio_id": "portfolio_melbourne",
       "source_version": "1",
       "content_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-      "source_business_key": "trade_fx_forward_001_source"
+      "source_business_key": "trade_fx_forward_001_spot_source"
     },
     {
       "source_observation_id": "obs_booking_forward_001",
@@ -47,7 +47,7 @@
       "source_portfolio_id": "portfolio_melbourne",
       "source_version": "1",
       "content_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-      "source_business_key": "trade_fx_forward_001_source"
+      "source_business_key": "trade_fx_forward_001_spot_source"
     }
   ],
   "evaluated_field_paths": [
@@ -105,10 +105,10 @@
   "supersedes_break_id": null,
   "causal_label_id": null,
   "product_context": {
-    "product_type": "FX_FORWARD",
+    "product_type": "FX_SPOT",
     "settlement_rule_version": "1.0.0",
     "trade_date": "2026-08-01",
-    "value_date": "2026-08-15"
+    "value_date": "2026-08-03"
   },
   "duplicate_source_conflict": null
 }

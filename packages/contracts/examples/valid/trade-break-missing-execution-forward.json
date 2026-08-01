@@ -4,15 +4,15 @@
   "detection_rule_version": "1.0.0",
   "priority_rule_version": "1.0.0",
   "lifecycle_rule_version": "1.0.0",
-  "break_id": "break_invalid_transition_001",
+  "break_id": "break_missing_execution_forward_001",
   "break_version": 1,
   "tenant_id": "tenant_demo",
   "portfolio_id": "portfolio_sydney",
-  "correlation_id": "corr_break_invalid_transition_001",
-  "trade_id": "trade_fx_001",
+  "correlation_id": "corr_break_missing_forward_001",
+  "trade_id": "trade_fx_forward_001",
   "canonical_state_version": 1,
   "reconciliation_run_id": "run_recon_001",
-  "product_type": "FX_SPOT",
+  "product_type": "FX_FORWARD",
   "family": "MISSING_REQUIRED_SOURCE",
   "condition_code": "MISSING_SOURCE_AFTER_WATERMARK",
   "severity": "HIGH",
@@ -37,7 +37,7 @@
       "source_portfolio_id": "portfolio_sydney",
       "source_version": "1",
       "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "source_business_key": "trade_fx_001_source"
+      "source_business_key": "trade_fx_001_forward_source"
     }
   ],
   "evaluated_field_paths": [
@@ -86,14 +86,14 @@
   "missing_source_expectation": {
     "expected_observation_kind": "EXECUTION",
     "expected_source_system": "FIX_EXECUTION",
-      "field_path": "/source/execution_observation",
+    "field_path": "/source/execution_observation",
     "arrival_window_rule_version": "1.0.0",
     "watermark_at": "2026-08-01T09:00:00Z",
     "expected_by": "2026-08-01T09:00:00Z"
   },
-  "state": "RESOLVED",
-  "previous_state": "OPEN",
-  "transition_reason": "RESOLUTION_VERIFIED",
+  "state": "OPEN",
+  "previous_state": null,
+  "transition_reason": "DETECTED",
   "detected_at": "2026-08-01T09:00:00Z",
   "state_changed_at": "2026-08-01T09:00:00Z",
   "resolved_at": null,
@@ -101,10 +101,10 @@
   "supersedes_break_id": null,
   "causal_label_id": null,
   "product_context": {
-    "product_type": "FX_SPOT",
+    "product_type": "FX_FORWARD",
     "settlement_rule_version": "1.0.0",
     "trade_date": "2026-08-01",
-    "value_date": "2026-08-03"
+    "value_date": "2026-08-15"
   },
   "duplicate_source_conflict": null
 }

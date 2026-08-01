@@ -4,15 +4,15 @@
   "detection_rule_version": "1.0.0",
   "priority_rule_version": "1.0.0",
   "lifecycle_rule_version": "1.0.0",
-  "break_id": "break_post_action_001",
+  "break_id": "break_post_action_forward_001",
   "break_version": 1,
   "tenant_id": "tenant_demo",
   "portfolio_id": "portfolio_sydney",
-  "correlation_id": "corr_break_post_action_001",
-  "trade_id": "trade_fx_post_action_001",
+  "correlation_id": "corr_break_post_action_forward_001",
+  "trade_id": "trade_fx_post_action_forward_001",
   "canonical_state_version": 1,
   "reconciliation_run_id": "run_recon_post_action_001",
-  "product_type": "FX_SPOT",
+  "product_type": "FX_FORWARD",
   "family": "POST_ACTION_VERIFICATION_FAILURE",
   "condition_code": "POST_ACTION_READBACK_RECONCILIATION",
   "severity": "CRITICAL",
@@ -37,7 +37,7 @@
       "source_portfolio_id": "portfolio_sydney",
       "source_version": "1",
       "content_hash": "sha256:1212121212121212121212121212121212121212121212121212121212121212",
-      "source_business_key": "trade_fx_post_action_001_source"
+      "source_business_key": "trade_fx_post_action_001_forward_source"
     }
   ],
   "evaluated_field_paths": [
@@ -124,10 +124,10 @@
   "supersedes_break_id": null,
   "causal_label_id": null,
   "product_context": {
-    "product_type": "FX_SPOT",
+    "product_type": "FX_FORWARD",
     "settlement_rule_version": "1.0.0",
     "trade_date": "2026-08-01",
-    "value_date": "2026-08-03"
+    "value_date": "2026-08-15"
   },
   "duplicate_source_conflict": null
 }

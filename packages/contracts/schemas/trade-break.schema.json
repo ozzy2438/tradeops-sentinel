@@ -6,7 +6,7 @@
   "$defs": {
     "breakFieldPath": {
       "type": "string",
-      "pattern": "^/(payload|linkage)/[a-z][a-z0-9_/-]*$"
+      "pattern": "^/(payload|linkage|source)/[a-z][a-z0-9_/-]*$"
     },
     "breakEvidenceRole": {
       "$ref": "break-taxonomy.schema.json#/$defs/evidenceRole"
@@ -58,21 +58,21 @@
           "properties": {
             "expected_observation_kind": {"const": "EXECUTION"},
             "expected_source_system": {"const": "FIX_EXECUTION"},
-            "field_path": {"const": "/payload/execution_status"}
+            "field_path": {"const": "/source/execution_observation"}
           }
         },
         {
           "properties": {
             "expected_observation_kind": {"const": "CONFIRMATION"},
             "expected_source_system": {"const": "FPML_CONFIRMATION"},
-            "field_path": {"const": "/payload/confirmation_status"}
+            "field_path": {"const": "/source/confirmation_observation"}
           }
         },
         {
           "properties": {
             "expected_observation_kind": {"const": "BOOKING"},
             "expected_source_system": {"const": "MOCK_LEGACY_BOOKING"},
-            "field_path": {"const": "/payload/booking_status"}
+            "field_path": {"const": "/source/booking_observation"}
           }
         }
       ]
@@ -84,6 +84,7 @@
         "source_observation_id",
         "observation_kind",
         "source_system",
+        "source_business_key",
         "source_tenant_id",
         "source_portfolio_id",
         "source_version",
@@ -93,6 +94,7 @@
         "source_observation_id": {"$ref": "common.schema.json#/$defs/identifier"},
         "observation_kind": {"$ref": "common.schema.json#/$defs/observationKind"},
         "source_system": {"$ref": "common.schema.json#/$defs/sourceSystem"},
+        "source_business_key": {"$ref": "common.schema.json#/$defs/identifier"},
         "source_tenant_id": {"$ref": "common.schema.json#/$defs/tenantId"},
         "source_portfolio_id": {"$ref": "common.schema.json#/$defs/portfolioId"},
         "source_version": {"$ref": "common.schema.json#/$defs/sourceVersion"},
@@ -119,6 +121,89 @@
         "field_path": {"anyOf": [{"$ref": "#/$defs/breakFieldPath"}, {"type": "null"}]}
       }
     },
+    "productContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product_type", "settlement_rule_version", "trade_date", "value_date"],
+      "properties": {
+        "product_type": {"$ref": "#/$defs/productType"},
+        "settlement_rule_version": {"const": "1.0.0"},
+        "trade_date": {"type": "string", "format": "date"},
+        "value_date": {"type": "string", "format": "date"}
+      }
+    },
+    "duplicateSourceConflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conflict_type", "source_observation_ids", "source_business_key", "source_version"],
+      "properties": {
+        "conflict_type": {"const": "SAME_SOURCE_KEY_VERSION_CONTENT"},
+        "source_observation_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/identifier"}
+        },
+        "source_business_key": {"$ref": "common.schema.json#/$defs/identifier"},
+        "source_version": {"$ref": "common.schema.json#/$defs/sourceVersion"}
+      }
+    },
+    "reconciliationSourceReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_observation_id", "source_version"],
+      "properties": {
+        "source_observation_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "source_version": {"$ref": "common.schema.json#/$defs/sourceVersion"}
+      }
+    },
+    "reconciliationSourceValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_observation_id", "source_version", "value"],
+      "properties": {
+        "source_observation_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "source_version": {"$ref": "common.schema.json#/$defs/sourceVersion"},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "reconciliationPassComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field_path", "value_type", "values"],
+      "properties": {
+        "field_path": {"$ref": "#/$defs/breakFieldPath"},
+        "value_type": {"enum": ["ABSENCE", "COUNT", "CURRENCY", "CURRENCY_PAIR", "SIDE", "DECIMAL", "DATE", "LIFECYCLE_STATUS", "IDENTIFIER", "READBACK", "SOURCE_IDENTITY", "SOURCE_VERSION", "CONTENT_HASH"]},
+        "values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/reconciliationSourceValue"}
+        }
+      }
+    },
+    "reconciliationProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reconciliation_run_id", "family", "condition_code", "predicate_code", "source_version_set", "comparisons"],
+      "properties": {
+        "reconciliation_run_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "family": {"$ref": "#/$defs/breakFamily"},
+        "condition_code": {"$ref": "#/$defs/conditionCode"},
+        "predicate_code": {"enum": ["SOURCE_OR_RECONCILIATION_PASS_OR_AUTHORISED_NON_ACTION", "LINKAGE_DECISION_AND_RECONCILIATION_PASS", "SOURCE_CORRECTION_OR_SUPERSESSION_AND_RECONCILIATION_PASS", "AGREEMENT_AFTER_CORRECTION_AND_RECONCILIATION_PASS", "WITHIN_TOLERANCE_AND_RECONCILIATION_PASS", "DATES_AGREE_AND_RECONCILIATION_PASS", "ALLOWED_LIFECYCLE_RELATION_AND_RECONCILIATION_PASS", "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION"]},
+        "source_version_set": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/reconciliationSourceReference"}
+        },
+        "comparisons": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/reconciliationPassComparison"}
+        }
+      }
+    },
     "tolerance": {
       "type": "object",
       "additionalProperties": false,
@@ -140,16 +225,33 @@
     "comparison": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["field_path", "value_type", "expected_value", "observed_value", "tolerance", "normalisation_rule_version", "evidence_ids"],
+      "required": ["field_path", "value_type", "expected_value", "observed_value", "tolerance", "normalisation_rule_version", "evidence_ids", "expected_source_observation_id", "expected_source_version", "observed_source_observation_id", "observed_source_version"],
       "properties": {
         "field_path": {"$ref": "#/$defs/breakFieldPath"},
-        "value_type": {"enum": ["ABSENCE", "COUNT", "CURRENCY_PAIR", "SIDE", "DECIMAL", "DATE", "LIFECYCLE_STATUS", "READBACK", "SOURCE_IDENTITY"]},
+        "value_type": {"enum": ["ABSENCE", "COUNT", "CURRENCY", "CURRENCY_PAIR", "SIDE", "DECIMAL", "DATE", "LIFECYCLE_STATUS", "IDENTIFIER", "READBACK", "SOURCE_IDENTITY", "SOURCE_VERSION", "CONTENT_HASH"]},
         "expected_value": {"type": "string", "minLength": 1},
         "observed_value": {"type": "string", "minLength": 1},
         "tolerance": {"$ref": "#/$defs/tolerance"},
         "normalisation_rule_version": {"const": "1.0.0"},
-        "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/identifier"}}
-      }
+        "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/identifier"}},
+        "expected_source_observation_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]},
+        "expected_source_version": {"anyOf": [{"$ref": "common.schema.json#/$defs/sourceVersion"}, {"type": "null"}]},
+        "observed_source_observation_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]},
+        "observed_source_version": {"anyOf": [{"$ref": "common.schema.json#/$defs/sourceVersion"}, {"type": "null"}]}
+      },
+      "allOf": [
+        {"if": {"properties": {"value_type": {"const": "COUNT"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"pattern": "^[0-9]+$"}, "observed_value": {"pattern": "^[0-9]+$"}}}},
+        {"if": {"properties": {"value_type": {"const": "CURRENCY"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"pattern": "^[A-Z]{3}$"}, "observed_value": {"pattern": "^[A-Z]{3}$"}}}},
+        {"if": {"properties": {"value_type": {"const": "CURRENCY_PAIR"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"pattern": "^[A-Z]{3}/[A-Z]{3}$"}, "observed_value": {"pattern": "^[A-Z]{3}/[A-Z]{3}$"}}}},
+        {"if": {"properties": {"value_type": {"const": "SIDE"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"enum": ["BUY_BASE", "SELL_BASE"]}, "observed_value": {"enum": ["BUY_BASE", "SELL_BASE"]}}}},
+        {"if": {"properties": {"value_type": {"const": "DECIMAL"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"}, "observed_value": {"pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"}, "tolerance": {"properties": {"mode": {"enum": ["NONE", "ABSOLUTE_DECIMAL", "RELATIVE_DECIMAL"]}}}}}},
+        {"if": {"properties": {"value_type": {"const": "DATE"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"format": "date"}, "observed_value": {"format": "date"}, "tolerance": {"properties": {"mode": {"const": "NONE"}}}}}},
+        {"if": {"properties": {"value_type": {"const": "LIFECYCLE_STATUS"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"enum": ["NEW", "CAPTURED", "CONFIRMED", "BOOKED", "AMENDED", "CANCELLED", "SETTLED"]}, "observed_value": {"enum": ["NEW", "CAPTURED", "CONFIRMED", "BOOKED", "AMENDED", "CANCELLED", "SETTLED"]}, "tolerance": {"properties": {"mode": {"const": "NONE"}}}}}},
+        {"if": {"properties": {"value_type": {"enum": ["ABSENCE", "COUNT", "CURRENCY", "CURRENCY_PAIR", "SIDE", "IDENTIFIER", "READBACK", "SOURCE_IDENTITY"]}}, "required": ["value_type"]}, "then": {"properties": {"tolerance": {"properties": {"mode": {"const": "NONE"}}}}}},
+        {"if": {"properties": {"value_type": {"const": "IDENTIFIER"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"$ref": "common.schema.json#/$defs/identifier"}, "observed_value": {"$ref": "common.schema.json#/$defs/identifier"}}}},
+        {"if": {"properties": {"value_type": {"const": "SOURCE_VERSION"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"$ref": "common.schema.json#/$defs/sourceVersion"}, "observed_value": {"$ref": "common.schema.json#/$defs/sourceVersion"}, "tolerance": {"properties": {"mode": {"const": "NONE"}}}}}},
+        {"if": {"properties": {"value_type": {"const": "CONTENT_HASH"}}, "required": ["value_type"]}, "then": {"properties": {"expected_value": {"$ref": "common.schema.json#/$defs/sha256"}, "observed_value": {"$ref": "common.schema.json#/$defs/sha256"}, "tolerance": {"properties": {"mode": {"const": "NONE"}}}}}}
+      ]
     },
     "priority": {
       "type": "object",
@@ -178,14 +280,15 @@
     "resolution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resolution_type", "reconciliation_run_id", "disposition_id", "approver", "evidence_ids", "evidence_roles"],
+      "required": ["resolution_type", "reconciliation_run_id", "disposition_id", "approver", "evidence_ids", "evidence_roles", "reconciliation_proof"],
       "properties": {
         "resolution_type": {"enum": ["RECONCILIATION_PASS", "OWNER_APPROVED_NON_ACTION"]},
         "reconciliation_run_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]},
         "disposition_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/identifier"}, {"type": "null"}]},
         "approver": {"anyOf": [{"$ref": "#/$defs/actor"}, {"type": "null"}]},
         "evidence_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/identifier"}},
-        "evidence_roles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/breakEvidenceRole"}}
+        "evidence_roles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/breakEvidenceRole"}},
+        "reconciliation_proof": {"anyOf": [{"$ref": "#/$defs/reconciliationProof"}, {"type": "null"}]}
       },
       "oneOf": [
         {
@@ -194,6 +297,7 @@
             "reconciliation_run_id": {"type": "string"},
             "disposition_id": {"type": "null"},
             "approver": {"type": "null"},
+            "reconciliation_proof": {"$ref": "#/$defs/reconciliationProof"},
             "evidence_roles": {"contains": {"const": "RECONCILIATION_RESULT"}}
           }
         },
@@ -203,6 +307,7 @@
             "reconciliation_run_id": {"type": "null"},
             "disposition_id": {"type": "string"},
             "approver": {"type": "object", "properties": {"identity_type": {"const": "HUMAN"}}, "required": ["identity_type"]},
+            "reconciliation_proof": {"type": "null"},
             "evidence_roles": {"contains": {"const": "DISPOSITION_APPROVAL"}}
           }
         }
@@ -238,6 +343,7 @@
     "canonical_state_version",
     "reconciliation_run_id",
     "product_type",
+    "product_context",
     "family",
     "condition_code",
     "severity",
@@ -248,6 +354,7 @@
     "comparisons",
     "evidence",
     "missing_source_expectation",
+    "duplicate_source_conflict",
     "state",
     "previous_state",
     "transition_reason",
@@ -273,6 +380,7 @@
     "canonical_state_version": {"type": "integer", "minimum": 1},
     "reconciliation_run_id": {"$ref": "common.schema.json#/$defs/identifier"},
     "product_type": {"$ref": "#/$defs/productType"},
+    "product_context": {"$ref": "#/$defs/productContext"},
     "family": {"$ref": "#/$defs/breakFamily"},
     "condition_code": {"$ref": "#/$defs/conditionCode"},
     "severity": {"$ref": "#/$defs/severity"},
@@ -283,6 +391,7 @@
     "comparisons": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/comparison"}},
     "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/evidence"}},
     "missing_source_expectation": {"anyOf": [{"$ref": "#/$defs/missingSourceExpectation"}, {"type": "null"}]},
+    "duplicate_source_conflict": {"anyOf": [{"$ref": "#/$defs/duplicateSourceConflict"}, {"type": "null"}]},
     "state": {"$ref": "#/$defs/lifecycleState"},
     "previous_state": {"anyOf": [{"$ref": "#/$defs/lifecycleState"}, {"type": "null"}]},
     "transition_reason": {"$ref": "#/$defs/transitionReason"},
@@ -303,7 +412,7 @@
             "severity": {"const": "MEDIUM"},
             "severity_context": {"const": "CONFIRMATION"},
             "missing_source_expectation": {"$ref": "#/$defs/missingSourceExpectation"},
-            "comparisons": {"items": {"properties": {"field_path": {"const": "/payload/confirmation_status"}, "value_type": {"const": "ABSENCE"}}}},
+            "comparisons": {"items": {"properties": {"field_path": {"const": "/source/confirmation_observation"}, "value_type": {"const": "ABSENCE"}}}},
             "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "INGESTION_WATERMARK"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "EXPECTED_SOURCE"}}, "required": ["role"]}}]}
           }
@@ -316,8 +425,8 @@
             "severity_context": {"enum": ["EXECUTION", "BOOKING"]},
             "missing_source_expectation": {"$ref": "#/$defs/missingSourceExpectation"},
             "comparisons": {"items": {"oneOf": [
-              {"properties": {"field_path": {"const": "/payload/execution_status"}, "value_type": {"const": "ABSENCE"}}},
-              {"properties": {"field_path": {"const": "/payload/booking_status"}, "value_type": {"const": "ABSENCE"}}}
+              {"properties": {"field_path": {"const": "/source/execution_observation"}, "value_type": {"const": "ABSENCE"}}},
+              {"properties": {"field_path": {"const": "/source/booking_observation"}, "value_type": {"const": "ABSENCE"}}}
             ]}},
             "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "INGESTION_WATERMARK"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "EXPECTED_SOURCE"}}, "required": ["role"]}}]}
@@ -343,10 +452,11 @@
             "severity_context": {"type": "null"},
             "missing_source_expectation": {"type": "null"},
             "comparisons": {"items": {"oneOf": [
-              {"properties": {"field_path": {"const": "/payload/source_business_key"}, "value_type": {"const": "SOURCE_IDENTITY"}}},
-              {"properties": {"field_path": {"const": "/payload/source_version"}, "value_type": {"const": "SOURCE_IDENTITY"}}},
-              {"properties": {"field_path": {"const": "/payload/content_hash"}, "value_type": {"const": "SOURCE_IDENTITY"}}}
+              {"properties": {"field_path": {"const": "/source/source_business_key"}, "value_type": {"const": "SOURCE_IDENTITY"}}},
+              {"properties": {"field_path": {"const": "/source/source_version"}, "value_type": {"const": "SOURCE_VERSION"}}},
+              {"properties": {"field_path": {"const": "/source/content_hash"}, "value_type": {"const": "CONTENT_HASH"}}}
             ]}},
+            "duplicate_source_conflict": {"$ref": "#/$defs/duplicateSourceConflict"},
             "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "SOURCE_PAYLOAD_PAIR"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "SOURCE_METADATA"}}, "required": ["role"]}}]}
           }
@@ -359,7 +469,8 @@
             "severity_context": {"type": "null"},
             "missing_source_expectation": {"type": "null"},
             "comparisons": {"items": {"oneOf": [
-              {"properties": {"field_path": {"const": "/payload/currency_pair"}, "value_type": {"const": "CURRENCY_PAIR"}}},
+              {"properties": {"field_path": {"const": "/payload/base_currency"}, "value_type": {"const": "CURRENCY"}}},
+              {"properties": {"field_path": {"const": "/payload/terms_currency"}, "value_type": {"const": "CURRENCY"}}},
               {"properties": {"field_path": {"const": "/payload/side"}, "value_type": {"const": "SIDE"}}}
             ]}},
             "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}]},
@@ -417,9 +528,8 @@
             "severity_context": {"type": "null"},
             "missing_source_expectation": {"type": "null"},
             "comparisons": {"items": {"oneOf": [
-              {"properties": {"field_path": {"const": "/payload/action_target"}, "value_type": {"const": "READBACK"}}},
-              {"properties": {"field_path": {"const": "/payload/action_status"}, "value_type": {"const": "READBACK"}}},
-              {"properties": {"field_path": {"const": "/payload/book_id"}, "value_type": {"const": "READBACK"}}}
+              {"properties": {"field_path": {"const": "/payload/book_id"}, "value_type": {"const": "IDENTIFIER"}}},
+              {"properties": {"field_path": {"const": "/payload/lifecycle_status"}, "value_type": {"const": "LIFECYCLE_STATUS"}}}
             ]}},
             "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "ACTION_INSTRUCTION"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "PRE_ACTION_READ"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "POST_ACTION_READ"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "CHANGED_FIELD_DIFF"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "RECONCILIATION_RESULT"}}, "required": ["role"]}}]}
@@ -449,6 +559,18 @@
       "oneOf": [
         {"properties": {"break_version": {"const": 1}, "supersedes_break_id": {"type": "null"}}},
         {"properties": {"break_version": {"minimum": 2}, "supersedes_break_id": {"type": "string"}}}
+      ]
+    },
+    {
+      "oneOf": [
+        {"properties": {"product_type": {"const": "FX_SPOT"}, "product_context": {"properties": {"product_type": {"const": "FX_SPOT"}}}}},
+        {"properties": {"product_type": {"const": "FX_FORWARD"}, "product_context": {"properties": {"product_type": {"const": "FX_FORWARD"}}}}}
+      ]
+    },
+    {
+      "oneOf": [
+        {"properties": {"family": {"const": "DUPLICATE_SOURCE_CONFLICT"}, "duplicate_source_conflict": {"$ref": "#/$defs/duplicateSourceConflict"}}},
+        {"properties": {"family": {"enum": ["MISSING_REQUIRED_SOURCE", "AMBIGUOUS_OR_UNMATCHED_LINKAGE", "CURRENCY_PAIR_OR_SIDE_MISMATCH", "ECONOMIC_VALUE_MISMATCH", "TRADE_OR_VALUE_DATE_MISMATCH", "LIFECYCLE_STATUS_MISMATCH", "POST_ACTION_VERIFICATION_FAILURE"]}, "duplicate_source_conflict": {"type": "null"}}}
       ]
     }
   ]

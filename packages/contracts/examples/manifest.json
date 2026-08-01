@@ -13,13 +13,21 @@
     "source-of-truth-policy.json": "source-of-truth-policy",
     "break-taxonomy.json": "break-taxonomy",
     "trade-break-missing-execution.json": "trade-break",
+    "trade-break-missing-execution-forward.json": "trade-break",
     "trade-break-ambiguous-linkage.json": "trade-break",
+    "trade-break-ambiguous-linkage-forward.json": "trade-break",
     "trade-break-duplicate-source.json": "trade-break",
+    "trade-break-duplicate-source-spot.json": "trade-break",
     "trade-break-currency-side.json": "trade-break",
+    "trade-break-currency-side-forward.json": "trade-break",
     "trade-break-economic-forward.json": "trade-break",
+    "trade-break-economic-spot.json": "trade-break",
     "trade-break-lifecycle-status.json": "trade-break",
+    "trade-break-lifecycle-status-spot.json": "trade-break",
     "trade-break-post-action.json": "trade-break",
+    "trade-break-post-action-forward.json": "trade-break",
     "trade-break-resolved.json": "trade-break",
+    "trade-break-date-spot.json": "trade-break",
     "trade-break-reopened.json": "trade-break"
   },
   "invalid": {
@@ -148,6 +156,12 @@
       "schema_rejects": false,
       "pydantic_rejects": true,
       "reason": "resolution evidence IDs must reference known break evidence"
+    },
+    "trade-break-duplicate-condition.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "duplicate source conflict must bind one source key and version to distinct content"
     }
   }
 }

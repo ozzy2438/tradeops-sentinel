@@ -10,9 +10,10 @@ cannot be hidden by an either/or test.
 The valid observations and canonical projections cover both FX Spot and FX
 Forward and keep execution, trade capture, confirmation, and booking as
 separate observation kinds. The TS-4 fixtures cover the exact trade-break
-taxonomy, an executable Spot/Forward matrix for all eight families, family
-field/value types, comparison evidence bindings, typed missing-source arrival
-windows, lifecycle resolution evidence, and deterministic priority inputs,
+taxonomy, an executable product-specific Spot/Forward matrix for all eight
+families, family field/value types, comparison evidence and source-operand
+bindings, typed missing-source arrival windows, lifecycle resolution evidence,
+structured reconciliation-pass proofs, and deterministic priority inputs,
 including an immutable reopened break version linked to its prior record. The
 negative fixtures cover unsupported versions, temporal availability, decimal
 scale, deterministic linkage decision/reason combinations, cross-scope

@@ -1,9 +1,169 @@
 {
-  "schema_version":"1.0.0","taxonomy_version":"1.0.0","detection_rule_version":"1.0.0","priority_rule_version":"1.0.0","lifecycle_rule_version":"1.0.0",
-  "break_id":"break_resolution_duplicate_001","break_version":1,"tenant_id":"tenant_demo","portfolio_id":"portfolio_sydney","correlation_id":"corr_break_resolution_duplicate_001","trade_id":"trade_fx_forward_002","canonical_state_version":3,"reconciliation_run_id":"run_recon_003","product_type":"FX_FORWARD","family":"TRADE_OR_VALUE_DATE_MISMATCH","condition_code":"EXACT_TRADE_VALUE_DATE","severity":"HIGH","severity_context":null,
-  "priority":{"materiality_band":"MATERIAL","deadline_status":"DUE","case_age_seconds":120,"ordering_key":[1,2,2,-120]},
-  "source_version_set":[{"source_observation_id":"obs_execution_forward_002","observation_kind":"EXECUTION","source_system":"FIX_EXECUTION","source_tenant_id":"tenant_demo","source_portfolio_id":"portfolio_sydney","source_version":"1","content_hash":"sha256:8888888888888888888888888888888888888888888888888888888888888888"},{"source_observation_id":"obs_confirmation_forward_002","observation_kind":"CONFIRMATION","source_system":"FPML_CONFIRMATION","source_tenant_id":"tenant_demo","source_portfolio_id":"portfolio_sydney","source_version":"2","content_hash":"sha256:9999999999999999999999999999999999999999999999999999999999999999"}],
-  "evaluated_field_paths":["/payload/value_date"],"comparisons":[{"field_path":"/payload/value_date","value_type":"DATE","expected_value":"2026-08-05","observed_value":"2026-08-06","tolerance":{"mode":"NONE","value":null},"normalisation_rule_version":"1.0.0","evidence_ids":["evidence_date_compare_001","evidence_date_rule_001"]}],
-  "evidence":[{"evidence_id":"evidence_date_compare_001","role":"DATE_COMPARISON","content_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","captured_at":"2026-08-01T11:00:00Z","source_observation_id":"obs_execution_forward_002","source_version":"1","field_path":"/payload/value_date"},{"evidence_id":"evidence_date_rule_001","role":"NORMALISATION_RULE","content_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","captured_at":"2026-08-01T11:00:00Z","source_observation_id":"obs_confirmation_forward_002","source_version":"2","field_path":"/payload/value_date"},{"evidence_id":"evidence_reconciliation_pass_001","role":"RECONCILIATION_RESULT","content_hash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","captured_at":"2026-08-01T11:05:00Z","source_observation_id":null,"source_version":null,"field_path":"/payload/value_date"}],
-  "missing_source_expectation":null,"state":"RESOLVED","previous_state":"VERIFYING","transition_reason":"RESOLUTION_VERIFIED","detected_at":"2026-08-01T10:30:00Z","state_changed_at":"2026-08-01T11:04:00Z","resolved_at":"2026-08-01T11:05:00Z","resolution":{"resolution_type":"RECONCILIATION_PASS","reconciliation_run_id":"run_recon_003","disposition_id":null,"approver":null,"evidence_ids":["evidence_reconciliation_pass_001","evidence_reconciliation_pass_001"],"evidence_roles":["RECONCILIATION_RESULT"]},"supersedes_break_id":null,"causal_label_id":null
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_resolution_duplicate_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "correlation_id": "corr_break_resolution_duplicate_001",
+  "trade_id": "trade_fx_forward_002",
+  "canonical_state_version": 3,
+  "reconciliation_run_id": "run_recon_003",
+  "product_type": "FX_FORWARD",
+  "family": "TRADE_OR_VALUE_DATE_MISMATCH",
+  "condition_code": "EXACT_TRADE_VALUE_DATE",
+  "severity": "HIGH",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "MATERIAL",
+    "deadline_status": "DUE",
+    "case_age_seconds": 120,
+    "ordering_key": [
+      1,
+      2,
+      2,
+      -120
+    ]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_execution_forward_002",
+      "observation_kind": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "1",
+      "content_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "source_business_key": "trade_fx_forward_002_source"
+    },
+    {
+      "source_observation_id": "obs_confirmation_forward_002",
+      "observation_kind": "CONFIRMATION",
+      "source_system": "FPML_CONFIRMATION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "2",
+      "content_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "source_business_key": "trade_fx_forward_002_source"
+    }
+  ],
+  "evaluated_field_paths": [
+    "/payload/value_date"
+  ],
+  "comparisons": [
+    {
+      "field_path": "/payload/value_date",
+      "value_type": "DATE",
+      "expected_value": "2026-08-05",
+      "observed_value": "2026-08-06",
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": [
+        "evidence_date_compare_001",
+        "evidence_date_rule_001"
+      ],
+      "expected_source_observation_id": "obs_execution_forward_002",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_confirmation_forward_002",
+      "observed_source_version": "2"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_date_compare_001",
+      "role": "DATE_COMPARISON",
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "captured_at": "2026-08-01T11:00:00Z",
+      "source_observation_id": "obs_execution_forward_002",
+      "source_version": "1",
+      "field_path": "/payload/value_date"
+    },
+    {
+      "evidence_id": "evidence_date_rule_001",
+      "role": "NORMALISATION_RULE",
+      "content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "captured_at": "2026-08-01T11:00:00Z",
+      "source_observation_id": "obs_confirmation_forward_002",
+      "source_version": "2",
+      "field_path": "/payload/value_date"
+    },
+    {
+      "evidence_id": "evidence_reconciliation_pass_001",
+      "role": "RECONCILIATION_RESULT",
+      "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "captured_at": "2026-08-01T11:05:00Z",
+      "source_observation_id": null,
+      "source_version": null,
+      "field_path": "/payload/value_date"
+    }
+  ],
+  "missing_source_expectation": null,
+  "state": "RESOLVED",
+  "previous_state": "VERIFYING",
+  "transition_reason": "RESOLUTION_VERIFIED",
+  "detected_at": "2026-08-01T10:30:00Z",
+  "state_changed_at": "2026-08-01T11:04:00Z",
+  "resolved_at": "2026-08-01T11:05:00Z",
+  "resolution": {
+    "resolution_type": "RECONCILIATION_PASS",
+    "reconciliation_run_id": "run_recon_003",
+    "disposition_id": null,
+    "approver": null,
+    "evidence_ids": [
+      "evidence_reconciliation_pass_001",
+      "evidence_reconciliation_pass_001"
+    ],
+    "evidence_roles": [
+      "RECONCILIATION_RESULT"
+    ],
+    "reconciliation_proof": {
+      "reconciliation_run_id": "run_recon_003",
+      "family": "TRADE_OR_VALUE_DATE_MISMATCH",
+      "condition_code": "EXACT_TRADE_VALUE_DATE",
+      "predicate_code": "DATES_AGREE_AND_RECONCILIATION_PASS",
+      "source_version_set": [
+        {
+          "source_observation_id": "obs_execution_forward_002",
+          "source_version": "1"
+        },
+        {
+          "source_observation_id": "obs_confirmation_forward_002",
+          "source_version": "2"
+        }
+      ],
+      "comparisons": [
+        {
+          "field_path": "/payload/value_date",
+          "value_type": "DATE",
+          "values": [
+            {
+              "source_observation_id": "obs_execution_forward_002",
+              "source_version": "1",
+              "value": "2026-08-05"
+            },
+            {
+              "source_observation_id": "obs_confirmation_forward_002",
+              "source_version": "2",
+              "value": "2026-08-05"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "supersedes_break_id": null,
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-15"
+  },
+  "duplicate_source_conflict": null
 }

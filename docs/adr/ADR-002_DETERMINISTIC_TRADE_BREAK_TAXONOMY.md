@@ -68,6 +68,12 @@ not as permission to overwrite. It may additionally create
 - Dates use exact normalised dates. The MVP does not infer holidays, cut-offs or
   expected Spot/Forward tenors unless the owner approves a versioned calendar
   rule and fixtures.
+- Comparison paths are an allow-list mapped to TS-3 source-of-truth fields:
+  canonical payload fields, the approved linkage trade ID, and explicitly typed
+  source identity fields for duplicate detection. A comparison carries both
+  expected and observed source observation IDs and versions; currency,
+  economic, date, lifecycle, and duplicate families require distinct source
+  operands. Exact-value types reject decimal tolerances.
 - Missing-source windows and numeric tolerances are configuration with version,
   owner approval and effective dates; they are not model parameters.
 - A missing-source break carries a typed expected observation kind/system,
@@ -100,7 +106,9 @@ NO_ACTION_DISPOSITION_PENDING → VERIFYING → RESOLVED | ESCALATED`.
 the family-specific invariant passes. Resolution evidence IDs must point to
 known break evidence, declare exactly the roles of those cited records, and
 be captured no later than `resolved_at`. A reconciliation resolution must cite
-`RECONCILIATION_RESULT` and carry the same run ID as the break. An owner-
+`RECONCILIATION_RESULT`, carry the same run ID as the break, and include a
+structured family-specific reconciliation-pass proof bound to the exact source
+versions and comparison operands. An owner-
 approved non-action disposition is permitted only for missing-source and
 post-action families and must cite a human-approved `DISPOSITION_APPROVAL`;
 date, lifecycle, economic, currency/side, duplicate, and linkage families
@@ -126,14 +134,17 @@ ground truth.
 - At least one positive, boundary and negative fixture per rule for Spot and
   Forward where applicable.
 - `examples/trade-break-fixture-matrix.json` and manifest-driven tests cover
-  every family for both synthetic products; each comparison is independently
-  evaluable through its field path, value type, and bound evidence IDs.
+  every family for both synthetic products using distinct product-specific
+  fixtures; each comparison is independently evaluable through its allow-listed
+  field path, value type, bound evidence IDs, and source operands.
 - Decimal orientation/rounding tests and explicit tolerance-boundary tests.
 - Replay, late-arrival and corrected-source tests prove deterministic reopening
   and resolution.
 - Resolution-role, unknown-ID, duplicate-ID, and capture-before-resolution
   mutations fail closed in the semantic layer; schema fixtures record the
   deliberate cross-array validation boundary.
+- Duplicate-source key/version/content binding, exact-value tolerance, and
+  structured reconciliation-proof mutations fail closed.
 - A positive reopen fixture proves a new `break_id`, incremented
   `break_version`, prior-record linkage, and a fresh `OPEN` record version;
   same-ID reopening is rejected.

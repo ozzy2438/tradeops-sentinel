@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from re import fullmatch
 from typing import Annotated, Any, Literal, TypeAlias
 
@@ -907,13 +908,17 @@ PriorityTieBreaker: TypeAlias = Literal[
 BreakValueType: TypeAlias = Literal[
     "ABSENCE",
     "COUNT",
+    "CURRENCY",
     "CURRENCY_PAIR",
     "SIDE",
     "DECIMAL",
     "DATE",
     "LIFECYCLE_STATUS",
+    "IDENTIFIER",
     "READBACK",
     "SOURCE_IDENTITY",
+    "SOURCE_VERSION",
+    "CONTENT_HASH",
 ]
 ToleranceMode: TypeAlias = Literal["NONE", "ABSOLUTE_DECIMAL", "RELATIVE_DECIMAL"]
 BreakResolutionType: TypeAlias = Literal[
@@ -922,7 +927,7 @@ BreakResolutionType: TypeAlias = Literal[
 ]
 BreakFieldPath = Annotated[
     str,
-    StringConstraints(pattern=r"^/(payload|linkage)/[a-z][a-z0-9_/-]*$"),
+    StringConstraints(pattern=r"^/(payload|linkage|source)/[a-z][a-z0-9_/-]*$"),
 ]
 MissingSourceObservationKind: TypeAlias = Literal["EXECUTION", "CONFIRMATION", "BOOKING"]
 
@@ -1027,18 +1032,19 @@ _BREAK_FAMILY_POLICY: dict[BreakFamily, BreakFamilyDefinitionSpec] = {
 BreakComparisonSpec: TypeAlias = tuple[str, BreakValueType]
 _BREAK_COMPARISON_POLICY: dict[BreakFamily, tuple[BreakComparisonSpec, ...]] = {
     "MISSING_REQUIRED_SOURCE": (
-        ("/payload/execution_status", "ABSENCE"),
-        ("/payload/confirmation_status", "ABSENCE"),
-        ("/payload/booking_status", "ABSENCE"),
+        ("/source/execution_observation", "ABSENCE"),
+        ("/source/confirmation_observation", "ABSENCE"),
+        ("/source/booking_observation", "ABSENCE"),
     ),
     "AMBIGUOUS_OR_UNMATCHED_LINKAGE": (("/linkage/trade_id", "COUNT"),),
     "DUPLICATE_SOURCE_CONFLICT": (
-        ("/payload/source_business_key", "SOURCE_IDENTITY"),
-        ("/payload/source_version", "SOURCE_IDENTITY"),
-        ("/payload/content_hash", "SOURCE_IDENTITY"),
+        ("/source/source_business_key", "SOURCE_IDENTITY"),
+        ("/source/source_version", "SOURCE_VERSION"),
+        ("/source/content_hash", "CONTENT_HASH"),
     ),
     "CURRENCY_PAIR_OR_SIDE_MISMATCH": (
-        ("/payload/currency_pair", "CURRENCY_PAIR"),
+        ("/payload/base_currency", "CURRENCY"),
+        ("/payload/terms_currency", "CURRENCY"),
         ("/payload/side", "SIDE"),
     ),
     "ECONOMIC_VALUE_MISMATCH": (
@@ -1052,9 +1058,8 @@ _BREAK_COMPARISON_POLICY: dict[BreakFamily, tuple[BreakComparisonSpec, ...]] = {
     ),
     "LIFECYCLE_STATUS_MISMATCH": (("/payload/lifecycle_status", "LIFECYCLE_STATUS"),),
     "POST_ACTION_VERIFICATION_FAILURE": (
-        ("/payload/action_target", "READBACK"),
-        ("/payload/action_status", "READBACK"),
-        ("/payload/book_id", "READBACK"),
+        ("/payload/book_id", "IDENTIFIER"),
+        ("/payload/lifecycle_status", "LIFECYCLE_STATUS"),
     ),
 }
 _BREAK_COMPARISON_EVIDENCE_ROLES: dict[BreakFamily, frozenset[BreakEvidenceRole]] = {
@@ -1082,10 +1087,34 @@ _BREAK_ALLOWED_RESOLUTION_TYPES: dict[BreakFamily, frozenset[BreakResolutionType
     ),
 }
 _EXPECTED_FIELD_BY_MISSING_SOURCE_KIND: dict[MissingSourceObservationKind, str] = {
-    "EXECUTION": "/payload/execution_status",
-    "CONFIRMATION": "/payload/confirmation_status",
-    "BOOKING": "/payload/booking_status",
+    "EXECUTION": "/source/execution_observation",
+    "CONFIRMATION": "/source/confirmation_observation",
+    "BOOKING": "/source/booking_observation",
 }
+_BREAK_ALLOWED_TOLERANCE_MODES: dict[BreakValueType, frozenset[ToleranceMode]] = {
+    "ABSENCE": frozenset({"NONE"}),
+    "COUNT": frozenset({"NONE"}),
+    "CURRENCY": frozenset({"NONE"}),
+    "CURRENCY_PAIR": frozenset({"NONE"}),
+    "SIDE": frozenset({"NONE"}),
+    "DECIMAL": frozenset({"NONE", "ABSOLUTE_DECIMAL", "RELATIVE_DECIMAL"}),
+    "DATE": frozenset({"NONE"}),
+    "LIFECYCLE_STATUS": frozenset({"NONE"}),
+    "IDENTIFIER": frozenset({"NONE"}),
+    "READBACK": frozenset({"NONE"}),
+    "SOURCE_IDENTITY": frozenset({"NONE"}),
+    "SOURCE_VERSION": frozenset({"NONE"}),
+    "CONTENT_HASH": frozenset({"NONE"}),
+}
+_BREAK_DISTINCT_SOURCE_FAMILIES: frozenset[BreakFamily] = frozenset(
+    {
+        "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+        "DUPLICATE_SOURCE_CONFLICT",
+        "ECONOMIC_VALUE_MISMATCH",
+        "TRADE_OR_VALUE_DATE_MISMATCH",
+        "LIFECYCLE_STATUS_MISMATCH",
+    }
+)
 
 _BREAK_LIFECYCLE_STATES: tuple[BreakLifecycleState, ...] = (
     "OPEN",
@@ -1203,6 +1232,7 @@ class BreakSourceReference(ContractModel):
     source_observation_id: Identifier
     observation_kind: ObservationKind
     source_system: SourceSystem
+    source_business_key: Identifier
     source_tenant_id: TenantId
     source_portfolio_id: PortfolioId
     source_version: SourceVersion
@@ -1255,6 +1285,10 @@ class BreakComparison(ContractModel):
     tolerance: BreakTolerance
     normalisation_rule_version: BreakRuleVersion
     evidence_ids: list[Identifier] = Field(min_length=1)
+    expected_source_observation_id: Identifier | None
+    expected_source_version: SourceVersion | None
+    observed_source_observation_id: Identifier | None
+    observed_source_version: SourceVersion | None
 
     @model_validator(mode="after")
     def comparison_values_match_type(self) -> BreakComparison:
@@ -1268,6 +1302,11 @@ class BreakComparison(ContractModel):
             )
         elif self.value_type == "CURRENCY_PAIR":
             pattern = r"^[A-Z]{3}/[A-Z]{3}$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        elif self.value_type == "CURRENCY":
+            pattern = r"^[A-Z]{3}$"
             valid = bool(
                 fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
             )
@@ -1311,10 +1350,93 @@ class BreakComparison(ContractModel):
             valid = bool(
                 fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
             )
+        elif self.value_type == "IDENTIFIER":
+            pattern = r"^[a-z][a-z0-9_-]{2,127}$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        elif self.value_type == "SOURCE_VERSION":
+            pattern = r"^[1-9][0-9]{0,18}$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
+        elif self.value_type == "CONTENT_HASH":
+            pattern = r"^sha256:[0-9a-f]{64}$"
+            valid = bool(
+                fullmatch(pattern, self.expected_value) and fullmatch(pattern, self.observed_value)
+            )
         else:
             valid = True
         if not valid:
             raise ValueError(f"comparison values do not match value_type {self.value_type}")
+        if self.tolerance.mode not in _BREAK_ALLOWED_TOLERANCE_MODES[self.value_type]:
+            raise ValueError(f"{self.value_type} comparisons require an exact tolerance")
+        return self
+
+
+class BreakProductContext(ContractModel):
+    product_type: ProductType
+    settlement_rule_version: SettlementRuleVersion
+    trade_date: date
+    value_date: date
+
+    @model_validator(mode="after")
+    def settlement_window_is_valid(self) -> BreakProductContext:
+        _validate_settlement_window(self.product_type, self.trade_date, self.value_date)
+        return self
+
+
+class DuplicateSourceConflict(ContractModel):
+    conflict_type: Literal["SAME_SOURCE_KEY_VERSION_CONTENT"]
+    source_observation_ids: list[Identifier] = Field(min_length=2)
+    source_business_key: Identifier
+    source_version: SourceVersion
+
+    @model_validator(mode="after")
+    def source_ids_are_unique(self) -> DuplicateSourceConflict:
+        if len(self.source_observation_ids) != len(set(self.source_observation_ids)):
+            raise ValueError("duplicate source conflict observation IDs must be unique")
+        return self
+
+
+class ReconciliationSourceReference(ContractModel):
+    source_observation_id: Identifier
+    source_version: SourceVersion
+
+
+class ReconciliationSourceValue(ReconciliationSourceReference):
+    value: str = Field(min_length=1)
+
+
+class ReconciliationPassComparison(ContractModel):
+    field_path: BreakFieldPath
+    value_type: BreakValueType
+    values: list[ReconciliationSourceValue] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def source_values_are_unique(self) -> ReconciliationPassComparison:
+        source_ids = [value.source_observation_id for value in self.values]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("reconciliation pass source values must use unique observations")
+        return self
+
+
+class ReconciliationPassProof(ContractModel):
+    reconciliation_run_id: Identifier
+    family: BreakFamily
+    condition_code: BreakConditionCode
+    predicate_code: BreakResolutionCode
+    source_version_set: list[ReconciliationSourceReference] = Field(min_length=1)
+    comparisons: list[ReconciliationPassComparison] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def proof_source_set_is_unique(self) -> ReconciliationPassProof:
+        source_ids = [source.source_observation_id for source in self.source_version_set]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("reconciliation proof source_version_set must be unique")
+        field_paths = [comparison.field_path for comparison in self.comparisons]
+        if len(field_paths) != len(set(field_paths)):
+            raise ValueError("reconciliation proof comparison field paths must be unique")
         return self
 
 
@@ -1355,6 +1477,7 @@ class BreakResolution(ContractModel):
     approver: Actor | None = None
     evidence_ids: list[Identifier] = Field(min_length=1)
     evidence_roles: list[BreakEvidenceRole] = Field(min_length=1)
+    reconciliation_proof: ReconciliationPassProof | None = None
 
     @model_validator(mode="after")
     def resolution_shape(self) -> BreakResolution:
@@ -1365,6 +1488,8 @@ class BreakResolution(ContractModel):
         if self.resolution_type == "RECONCILIATION_PASS":
             if self.reconciliation_run_id is None:
                 raise ValueError("reconciliation-pass resolution requires reconciliation_run_id")
+            if self.reconciliation_proof is None:
+                raise ValueError("reconciliation-pass resolution requires reconciliation_proof")
             if self.disposition_id is not None or self.approver is not None:
                 raise ValueError(
                     "reconciliation-pass resolution must not carry a disposition approver"
@@ -1376,6 +1501,8 @@ class BreakResolution(ContractModel):
                 raise ValueError("non-action disposition must be approved by a human")
             if self.reconciliation_run_id is not None:
                 raise ValueError("non-action resolution must not carry reconciliation_run_id")
+            if self.reconciliation_proof is not None:
+                raise ValueError("non-action resolution must not carry reconciliation_proof")
             if "DISPOSITION_APPROVAL" not in self.evidence_roles:
                 raise ValueError("non-action resolution requires disposition evidence role")
         if (
@@ -1419,6 +1546,32 @@ def _expected_break_severity(
     return expected[2]
 
 
+def _reconciliation_values_agree(
+    values: list[str],
+    value_type: BreakValueType,
+    tolerance: BreakTolerance,
+) -> bool:
+    """Check that a reconciliation proof demonstrates an accepted result."""
+
+    if not values:
+        return False
+    if value_type == "DECIMAL":
+        try:
+            decimals = [Decimal(value) for value in values]
+            if tolerance.mode == "NONE":
+                return all(value == decimals[0] for value in decimals[1:])
+            assert tolerance.value is not None
+            allowed = Decimal(tolerance.value)
+            if tolerance.mode == "ABSOLUTE_DECIMAL":
+                return all(abs(value - decimals[0]) <= allowed for value in decimals[1:])
+            return all(
+                abs(value - decimals[0]) <= abs(decimals[0]) * allowed for value in decimals[1:]
+            )
+        except (InvalidOperation, ValueError):
+            return False
+    return all(value == values[0] for value in values[1:])
+
+
 class TradeBreak(ContractModel):
     schema_version: SchemaVersion = "1.0.0"
     taxonomy_version: BreakRuleVersion
@@ -1434,6 +1587,7 @@ class TradeBreak(ContractModel):
     canonical_state_version: int = Field(ge=1)
     reconciliation_run_id: Identifier
     product_type: ProductType
+    product_context: BreakProductContext
     family: BreakFamily
     condition_code: BreakConditionCode
     severity: BreakSeverity
@@ -1444,6 +1598,7 @@ class TradeBreak(ContractModel):
     comparisons: list[BreakComparison] = Field(min_length=1)
     evidence: list[BreakEvidence] = Field(min_length=1)
     missing_source_expectation: MissingSourceExpectation | None = None
+    duplicate_source_conflict: DuplicateSourceConflict | None = None
     state: BreakLifecycleState
     previous_state: BreakLifecycleState | None
     transition_reason: BreakTransitionReason
@@ -1457,6 +1612,13 @@ class TradeBreak(ContractModel):
     @model_validator(mode="after")
     def validate_break_invariants(self) -> TradeBreak:
         expected_definition = _BREAK_FAMILY_POLICY[self.family]
+        if self.product_context.product_type != self.product_type:
+            raise ValueError("product_context.product_type must match product_type")
+        _validate_settlement_window(
+            self.product_type,
+            self.product_context.trade_date,
+            self.product_context.value_date,
+        )
         if self.condition_code != expected_definition[1]:
             raise ValueError("condition_code must match the selected break family")
         if self.severity != _expected_break_severity(self.family, self.severity_context):
@@ -1522,6 +1684,31 @@ class TradeBreak(ContractModel):
         indexed_sources = {
             source.source_observation_id: source for source in self.source_version_set
         }
+        if self.family == "DUPLICATE_SOURCE_CONFLICT":
+            conflict = self.duplicate_source_conflict
+            if conflict is None:
+                raise ValueError("duplicate-source breaks require duplicate_source_conflict")
+            if set(conflict.source_observation_ids) != set(indexed_sources):
+                raise ValueError(
+                    "duplicate-source conflict must identify every source in source_version_set"
+                )
+            conflict_sources = [
+                indexed_sources[source_id] for source_id in conflict.source_observation_ids
+            ]
+            if any(
+                source.source_business_key != conflict.source_business_key
+                or source.source_version != conflict.source_version
+                for source in conflict_sources
+            ):
+                raise ValueError(
+                    "duplicate-source conflict must bind the declared source key and version"
+                )
+            if len({source.content_hash for source in conflict_sources}) < 2:
+                raise ValueError(
+                    "duplicate-source conflict requires non-identical source content hashes"
+                )
+        elif self.duplicate_source_conflict is not None:
+            raise ValueError("only duplicate-source breaks may carry duplicate_source_conflict")
         for item in self.evidence:
             if item.source_observation_id is None:
                 continue
@@ -1538,9 +1725,67 @@ class TradeBreak(ContractModel):
                 )
             if len(comparison.evidence_ids) != len(set(comparison.evidence_ids)):
                 raise ValueError("comparison evidence IDs must be unique")
+            if self.family == "MISSING_REQUIRED_SOURCE":
+                if (
+                    comparison.expected_source_observation_id is not None
+                    or comparison.expected_source_version is not None
+                ):
+                    raise ValueError("missing-source comparisons must not have an expected source")
+                operand_ids = {comparison.observed_source_observation_id}
+                if comparison.observed_source_observation_id is None:
+                    raise ValueError("missing-source comparisons require an observed source")
+            else:
+                if (
+                    comparison.expected_source_observation_id is None
+                    or comparison.expected_source_version is None
+                    or comparison.observed_source_observation_id is None
+                    or comparison.observed_source_version is None
+                ):
+                    raise ValueError("comparisons require expected and observed source references")
+                operand_ids = {
+                    comparison.expected_source_observation_id,
+                    comparison.observed_source_observation_id,
+                }
+            for source_id, source_version, operand_name in (
+                (
+                    comparison.expected_source_observation_id,
+                    comparison.expected_source_version,
+                    "expected",
+                ),
+                (
+                    comparison.observed_source_observation_id,
+                    comparison.observed_source_version,
+                    "observed",
+                ),
+            ):
+                if source_id is None or source_version is None:
+                    if self.family == "MISSING_REQUIRED_SOURCE" and operand_name == "expected":
+                        continue
+                    raise ValueError(f"{operand_name} comparison source reference is incomplete")
+                matched_operand = indexed_sources.get(source_id)
+                if matched_operand is None or matched_operand.source_version != source_version:
+                    raise ValueError(
+                        f"{operand_name} comparison source reference must match source_version_set"
+                    )
+            if self.family in _BREAK_DISTINCT_SOURCE_FAMILIES and len(operand_ids) != 2:
+                raise ValueError(
+                    "this break family requires distinct expected and observed source observations"
+                )
             for evidence_id in comparison.evidence_ids:
                 if evidence_id not in indexed_evidence:
                     raise ValueError("comparison evidence IDs must reference break evidence")
+            cited_source_ids = {
+                indexed_evidence[evidence_id].source_observation_id
+                for evidence_id in comparison.evidence_ids
+                if indexed_evidence[evidence_id].source_observation_id is not None
+            }
+            if self.family != "MISSING_REQUIRED_SOURCE" and not operand_ids.issubset(
+                cited_source_ids
+            ):
+                raise ValueError(
+                    "comparison evidence must cite both expected and observed source observations"
+                )
+            for evidence_id in comparison.evidence_ids:
                 item = indexed_evidence[evidence_id]
                 if item.field_path != comparison.field_path:
                     raise ValueError("comparison evidence must bind to the comparison field_path")
@@ -1597,6 +1842,80 @@ class TradeBreak(ContractModel):
                     raise ValueError(
                         "reconciliation-pass resolution must reference the break reconciliation run"
                     )
+                proof = self.resolution.reconciliation_proof
+                if proof is None:
+                    raise ValueError("reconciliation-pass resolution requires structured proof")
+                if (
+                    proof.reconciliation_run_id != self.reconciliation_run_id
+                    or proof.family != self.family
+                    or proof.condition_code != self.condition_code
+                    or proof.predicate_code != expected_definition[5]
+                ):
+                    raise ValueError(
+                        "reconciliation proof must bind to this break family, condition, "
+                        "run, and predicate"
+                    )
+                expected_source_versions = {
+                    source.source_observation_id: source.source_version
+                    for source in self.source_version_set
+                }
+                proof_source_versions = {
+                    source.source_observation_id: source.source_version
+                    for source in proof.source_version_set
+                }
+                if proof_source_versions != expected_source_versions:
+                    raise ValueError(
+                        "reconciliation proof source_version_set must match the break source set"
+                    )
+                proof_by_path = {
+                    comparison.field_path: comparison for comparison in proof.comparisons
+                }
+                if set(proof_by_path) != set(comparison_paths):
+                    raise ValueError(
+                        "reconciliation proof must cover exactly the break comparison fields"
+                    )
+                for comparison in self.comparisons:
+                    proof_comparison = proof_by_path[comparison.field_path]
+                    if proof_comparison.value_type != comparison.value_type:
+                        raise ValueError(
+                            "reconciliation proof value_type must match the break comparison"
+                        )
+                    proof_values = proof_comparison.values
+                    proof_ids = {value.source_observation_id for value in proof_values}
+                    if not proof_ids.issubset(expected_source_versions):
+                        raise ValueError(
+                            "reconciliation proof values must reference known break sources"
+                        )
+                    if any(
+                        expected_source_versions[source_id] != value.source_version
+                        for value in proof_values
+                        for source_id in [value.source_observation_id]
+                    ):
+                        raise ValueError("reconciliation proof values must match source versions")
+                    required_proof_ids = (
+                        {comparison.observed_source_observation_id}
+                        if self.family == "MISSING_REQUIRED_SOURCE"
+                        else {
+                            comparison.expected_source_observation_id,
+                            comparison.observed_source_observation_id,
+                        }
+                    )
+                    if not required_proof_ids.issubset(proof_ids):
+                        raise ValueError(
+                            "reconciliation proof must include the comparison operand sources"
+                        )
+                    if self.family in _BREAK_DISTINCT_SOURCE_FAMILIES and len(proof_ids) < 2:
+                        raise ValueError(
+                            "reconciliation proof must demonstrate both source observations"
+                        )
+                    if not _reconciliation_values_agree(
+                        [value.value for value in proof_values],
+                        comparison.value_type,
+                        comparison.tolerance,
+                    ):
+                        raise ValueError(
+                            "reconciliation proof values do not satisfy the comparison tolerance"
+                        )
             elif "DISPOSITION_APPROVAL" not in resolution_roles:
                 raise ValueError("non-action resolution requires disposition evidence")
             if any(self.resolved_at < item.captured_at for item in resolution_evidence):

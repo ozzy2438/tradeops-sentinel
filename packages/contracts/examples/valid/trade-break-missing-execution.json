@@ -21,7 +21,12 @@
     "materiality_band": "UNASSESSED",
     "deadline_status": "OVERDUE",
     "case_age_seconds": 3600,
-    "ordering_key": [2, 2, 1, -3600]
+    "ordering_key": [
+      2,
+      2,
+      1,
+      -3600
+    ]
   },
   "source_version_set": [
     {
@@ -31,19 +36,31 @@
       "source_tenant_id": "tenant_demo",
       "source_portfolio_id": "portfolio_sydney",
       "source_version": "1",
-      "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      "content_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "source_business_key": "trade_fx_001_source"
     }
   ],
-  "evaluated_field_paths": ["/payload/execution_status"],
+  "evaluated_field_paths": [
+    "/source/execution_observation"
+  ],
   "comparisons": [
     {
-      "field_path": "/payload/execution_status",
+      "field_path": "/source/execution_observation",
       "value_type": "ABSENCE",
       "expected_value": "present",
       "observed_value": "absent_after_watermark",
-      "tolerance": {"mode": "NONE", "value": null},
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
       "normalisation_rule_version": "1.0.0",
-      "evidence_ids": ["evidence_expected_source_001"]
+      "evidence_ids": [
+        "evidence_expected_source_001"
+      ],
+      "expected_source_observation_id": null,
+      "expected_source_version": null,
+      "observed_source_observation_id": "obs_trade_capture_001",
+      "observed_source_version": "1"
     }
   ],
   "evidence": [
@@ -54,7 +71,7 @@
       "captured_at": "2026-08-01T09:00:00Z",
       "source_observation_id": null,
       "source_version": null,
-      "field_path": "/payload/execution_status"
+      "field_path": "/source/execution_observation"
     },
     {
       "evidence_id": "evidence_expected_source_001",
@@ -63,13 +80,13 @@
       "captured_at": "2026-08-01T09:00:00Z",
       "source_observation_id": null,
       "source_version": null,
-      "field_path": "/payload/execution_status"
+      "field_path": "/source/execution_observation"
     }
   ],
   "missing_source_expectation": {
     "expected_observation_kind": "EXECUTION",
     "expected_source_system": "FIX_EXECUTION",
-    "field_path": "/payload/execution_status",
+      "field_path": "/source/execution_observation",
     "arrival_window_rule_version": "1.0.0",
     "watermark_at": "2026-08-01T09:00:00Z",
     "expected_by": "2026-08-01T09:00:00Z"
@@ -82,5 +99,12 @@
   "resolved_at": null,
   "resolution": null,
   "supersedes_break_id": null,
-  "causal_label_id": null
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_SPOT",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-03"
+  },
+  "duplicate_source_conflict": null
 }
