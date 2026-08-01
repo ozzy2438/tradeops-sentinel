@@ -80,6 +80,13 @@ artefact is addressed by its content hash and never silently overwritten. A
 replacement creates a new version with explicit supersession; it does not
 rewrite prior evidence.
 
+Source-observation evidence and action manifests carry a typed
+tenant/portfolio/case/trade scope. Source-observation references also carry the
+observation kind and source system, and the evidence contract requires those
+values to match the allowed source identity namespace. A reference cannot be
+composed into an action or evidence item from a different scope; the contract
+layer rejects that mismatch before any future verifier or dispatcher is called.
+
 Screenshot evidence is optional. Structured observation/read-back and audit
 records are required. If a screenshot/receipt is retained, a restricted source
 and a redacted derivative are separately hashed; failure to redact or persist
@@ -145,4 +152,3 @@ tests.
    whether structured receipt/read-back evidence is sufficient.
 3. Whether any external anchoring or WORM/legal-hold capability is desired
    post-MVP; no such claim is allowed without a separate approved ADR and test.
-

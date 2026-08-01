@@ -7,11 +7,20 @@
   "tenant_id": "tenant_demo",
   "portfolio_id": "portfolio_sydney",
   "case_id": "case_001",
+  "trade_id": "trade_fx_001",
   "correlation_id": "corr_case_001",
   "evidence_kind": "SOURCE_OBSERVATION_HASH",
   "source_reference": {
-    "reference_id": "confirmation_001",
+    "reference_id": "obs_confirmation_001",
     "reference_version": 1,
+    "scope": {
+      "tenant_id": "tenant_demo",
+      "portfolio_id": "portfolio_sydney",
+      "case_id": "case_001",
+      "trade_id": "trade_fx_001"
+    },
+    "observation_kind": "CONFIRMATION",
+    "source_system": "FPML_CONFIRMATION",
     "source_version": "1",
     "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },

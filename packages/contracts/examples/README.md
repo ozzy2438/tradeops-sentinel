@@ -27,10 +27,16 @@ source-kind restrictions.
 
 The TS-5 fixtures add an unsigned, non-executable action instruction draft and
 an ADR-012 evidence item. The action fixture carries explicit consumed
-versions, CAS control, validity window, nonce, idempotency key, and content
-hash. Its tests prove that canonical hashing is repeatable, a locked field
-change moves the hash, and the idempotency composition cannot silently drift.
+versions, typed source/manifest scopes, CAS control, validity window, nonce,
+idempotency key, and content hash. Its tests prove that canonical hashing is
+repeatable, a locked field change moves the hash, exact approved strings remain
+byte-exact, and source-reference ordering cannot silently change the draft
+identity.
 
 Evidence tests also pin the identity boundary: evidence-record lineage uses a
 new evidence ID plus `supersedes_evidence_id`, while a stable artifact ID may
 be referenced by more than one evidence record at a specific artifact version.
+Source evidence additionally carries a typed source kind/system and a scope
+that must equal the evidence item's tenant, portfolio, case, and trade scope;
+source IDs use the `obs_<kind>_...` namespace; action source observations and
+manifests must equal the instruction scope.

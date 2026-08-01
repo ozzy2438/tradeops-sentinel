@@ -37,16 +37,31 @@ version, CAS/LEASE control reference, validity window, nonce, idempotency key,
 content hash, revocation lookup, and evidence-manifest reference.
 
 The canonical encoding is version 1 JSON with sorted keys, compact separators,
-UTF-8, and UTC timestamps rendered with `Z`. Derived `content_hash`,
+UTF-8, and typed datetime values rendered in UTC with `Z`. Arbitrary string
+values, including `exact_approved_new_value` and
+`normalised_expected_old_value`, remain byte-exact; the encoder never guesses
+that a string containing `T` is a timestamp. The unordered
+`source_observation_versions` set is sorted by the stable tuple
+`(scope.tenant_id, scope.portfolio_id, scope.case_id, scope.trade_id,
+observation_id, source_version, content_hash, observation_kind, source_system)`
+before hashing. Derived `content_hash`,
 `idempotency_key`, and future signature metadata are excluded from the locked
 draft bytes. The idempotency key is structurally derived from the ADR-005
 tenant/portfolio/trade/action/booking-version/old-value/new-value/content-hash
 tuple. The package does not create or verify signatures, dispatch instructions,
 execute writes, or claim exactly-once delivery.
 
-Evidence items are scoped by tenant, portfolio, case, and correlation ID;
+Evidence items are scoped by tenant, portfolio, case, trade, and correlation ID;
 versioned and content-addressed; linked to a producer and source reference;
 and explicit about classification, retention, and redaction/derivative state.
+Source-observation and evidence-manifest references carry a typed
+`ReferenceScope`; Pydantic semantic validation requires each reference scope to
+equal its containing action or evidence scope. Source-observation references
+also carry the typed observation kind and source system, with their allowed
+kind/system pairing and `obs_<kind>_...` identity namespace enforced in both
+layers. Generic evidence references may omit source metadata, but
+`SOURCE_OBSERVATION_HASH` requires the complete typed source scope, kind,
+system, source version, and hash.
 The identity pairs are intentionally separate: `evidence_id` plus
 `evidence_version` identify an immutable evidence-record lineage, while
 `artifact_id` plus `artifact_version` identify a separately stored immutable

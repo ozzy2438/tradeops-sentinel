@@ -131,6 +131,13 @@
   ],
   "additionalProperties": false,
   "$defs": {
+    "sourceObservationId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^obs_(execution|trade_capture|confirmation|booking)_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Typed identity of a TS-3 source observation."
+    },
     "versionReference": {
       "type": "object",
       "required": ["reference_id", "version"],
@@ -142,21 +149,62 @@
     },
     "sourceObservationVersionReference": {
       "type": "object",
-      "required": ["observation_id", "source_version", "content_hash"],
+      "required": [
+        "observation_id",
+        "observation_kind",
+        "source_system",
+        "scope",
+        "source_version",
+        "content_hash"
+      ],
       "properties": {
-        "observation_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "observation_id": {"$ref": "#/$defs/sourceObservationId"},
+        "observation_kind": {"$ref": "common.schema.json#/$defs/observationKind"},
+        "source_system": {"$ref": "common.schema.json#/$defs/sourceSystem"},
+        "scope": {"$ref": "common.schema.json#/$defs/referenceScope"},
         "source_version": {"$ref": "common.schema.json#/$defs/sourceVersion"},
         "content_hash": {"$ref": "common.schema.json#/$defs/sha256"}
       },
+      "oneOf": [
+        {
+          "properties": {
+            "observation_kind": {"const": "EXECUTION"},
+            "source_system": {"const": "FIX_EXECUTION"},
+            "observation_id": {"pattern": "^obs_execution_"}
+          }
+        },
+        {
+          "properties": {
+            "observation_kind": {"const": "TRADE_CAPTURE"},
+            "source_system": {"const": "FIX_TRADE_CAPTURE"},
+            "observation_id": {"pattern": "^obs_trade_capture_"}
+          }
+        },
+        {
+          "properties": {
+            "observation_kind": {"const": "CONFIRMATION"},
+            "source_system": {"const": "FPML_CONFIRMATION"},
+            "observation_id": {"pattern": "^obs_confirmation_"}
+          }
+        },
+        {
+          "properties": {
+            "observation_kind": {"const": "BOOKING"},
+            "source_system": {"const": "MOCK_LEGACY_BOOKING"},
+            "observation_id": {"pattern": "^obs_booking_"}
+          }
+        }
+      ],
       "additionalProperties": false
     },
     "evidenceManifestReference": {
       "type": "object",
-      "required": ["manifest_id", "manifest_version", "content_hash"],
+      "required": ["manifest_id", "manifest_version", "content_hash", "scope"],
       "properties": {
         "manifest_id": {"$ref": "common.schema.json#/$defs/identifier"},
         "manifest_version": {"type": "integer", "minimum": 1},
-        "content_hash": {"$ref": "common.schema.json#/$defs/sha256"}
+        "content_hash": {"$ref": "common.schema.json#/$defs/sha256"},
+        "scope": {"$ref": "common.schema.json#/$defs/referenceScope"}
       },
       "additionalProperties": false
     },

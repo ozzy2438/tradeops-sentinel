@@ -13,6 +13,7 @@
     "tenant_id",
     "portfolio_id",
     "case_id",
+    "trade_id",
     "correlation_id",
     "evidence_kind",
     "source_reference",
@@ -38,6 +39,7 @@
     "tenant_id": {"$ref": "common.schema.json#/$defs/tenantId"},
     "portfolio_id": {"$ref": "common.schema.json#/$defs/portfolioId"},
     "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "trade_id": {"$ref": "common.schema.json#/$defs/identifier"},
     "correlation_id": {"$ref": "common.schema.json#/$defs/correlationId"},
     "evidence_kind": {
       "enum": [
@@ -160,8 +162,20 @@
       },
       "then": {
         "properties": {
-          "source_reference": {
+            "source_reference": {
             "properties": {
+              "reference_id": {
+                "$ref": "#/$defs/sourceObservationId"
+              },
+              "scope": {
+                "$ref": "common.schema.json#/$defs/referenceScope"
+              },
+              "observation_kind": {
+                "$ref": "common.schema.json#/$defs/observationKind"
+              },
+              "source_system": {
+                "$ref": "common.schema.json#/$defs/sourceSystem"
+              },
               "source_version": {
                 "$ref": "common.schema.json#/$defs/sourceVersion"
               },
@@ -169,7 +183,13 @@
                 "$ref": "common.schema.json#/$defs/sha256"
               }
             },
-            "required": ["source_version", "content_hash"]
+            "required": [
+              "scope",
+              "observation_kind",
+              "source_system",
+              "source_version",
+              "content_hash"
+            ]
           }
         }
       }
@@ -177,6 +197,13 @@
   ],
   "additionalProperties": false,
   "$defs": {
+    "sourceObservationId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^obs_(execution|trade_capture|confirmation|booking)_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Typed identity of a TS-3 source observation."
+    },
     "evidenceId": {
       "allOf": [
         {"$ref": "common.schema.json#/$defs/identifier"},
@@ -197,6 +224,24 @@
       "properties": {
         "reference_id": {"$ref": "common.schema.json#/$defs/identifier"},
         "reference_version": {"type": "integer", "minimum": 1},
+        "scope": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/referenceScope"},
+            {"type": "null"}
+          ]
+        },
+        "observation_kind": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/observationKind"},
+            {"type": "null"}
+          ]
+        },
+        "source_system": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/sourceSystem"},
+            {"type": "null"}
+          ]
+        },
         "source_version": {
           "anyOf": [
             {"$ref": "common.schema.json#/$defs/sourceVersion"},
@@ -210,6 +255,61 @@
           ]
         }
       },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_execution_"},
+                "observation_kind": {"const": "EXECUTION"},
+                "source_system": {"const": "FIX_EXECUTION"}
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_trade_capture_"},
+                "observation_kind": {"const": "TRADE_CAPTURE"},
+                "source_system": {"const": "FIX_TRADE_CAPTURE"}
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_confirmation_"},
+                "observation_kind": {"const": "CONFIRMATION"},
+                "source_system": {"const": "FPML_CONFIRMATION"}
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_booking_"},
+                "observation_kind": {"const": "BOOKING"},
+                "source_system": {"const": "MOCK_LEGACY_BOOKING"}
+              }
+            },
+            {
+              "not": {
+                "anyOf": [
+                  {"required": ["scope"]},
+                  {"required": ["observation_kind"]},
+                  {"required": ["source_system"]}
+                ]
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "scope": {"type": "null"},
+                "observation_kind": {"type": "null"},
+                "source_system": {"type": "null"}
+              }
+            }
+          ]
+        }
+      ],
       "additionalProperties": false
     }
   }

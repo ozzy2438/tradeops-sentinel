@@ -31,6 +31,25 @@
       "type": "string",
       "pattern": "^corr_[a-z0-9][a-z0-9_-]{1,127}$"
     },
+    "referenceScope": {
+      "type": "object",
+      "required": ["tenant_id", "portfolio_id", "case_id", "trade_id"],
+      "properties": {
+        "tenant_id": {
+          "$ref": "#/$defs/tenantId"
+        },
+        "portfolio_id": {
+          "$ref": "#/$defs/portfolioId"
+        },
+        "case_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "trade_id": {
+          "$ref": "#/$defs/identifier"
+        }
+      },
+      "additionalProperties": false
+    },
     "sha256": {
       "type": "string",
       "pattern": "^sha256:[0-9a-f]{64}$"

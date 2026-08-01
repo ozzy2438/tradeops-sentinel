@@ -72,10 +72,74 @@ def test_content_hash_is_deterministic_and_field_changes_move_hash() -> None:
     validate_contract_document("action-instruction", changed)
 
 
+def test_exact_approved_values_are_byte_exact_in_hash_and_idempotency() -> None:
+    base = _load("action-instruction.json")
+    first = deepcopy(base)
+    first["exact_approved_new_value"] = "2026-08-01T07:00:00Z"
+    first["content_hash"] = compute_action_content_hash(first)
+    first["idempotency_key"] = compute_idempotency_key(first)
+
+    second = deepcopy(base)
+    second["exact_approved_new_value"] = "2026-08-01T07:00:00+00:00"
+    second["content_hash"] = compute_action_content_hash(second)
+    second["idempotency_key"] = compute_idempotency_key(second)
+
+    assert first["content_hash"] != second["content_hash"]
+    assert first["idempotency_key"] != second["idempotency_key"]
+    _validate_schema("action-instruction", first)
+    _validate_schema("action-instruction", second)
+    validate_contract_document("action-instruction", first)
+    validate_contract_document("action-instruction", second)
+
+
+def test_action_references_must_match_instruction_scope() -> None:
+    source_scope_mismatch = deepcopy(_load("action-instruction.json"))
+    source_scope_mismatch["source_observation_versions"][0]["scope"]["tenant_id"] = "tenant_other"
+    source_scope_mismatch["content_hash"] = compute_action_content_hash(source_scope_mismatch)
+    source_scope_mismatch["idempotency_key"] = compute_idempotency_key(source_scope_mismatch)
+    _validate_schema("action-instruction", source_scope_mismatch)
+    with pytest.raises(PydanticValidationError, match="source observations"):
+        validate_contract_document("action-instruction", source_scope_mismatch)
+
+    manifest_scope_mismatch = deepcopy(_load("action-instruction.json"))
+    manifest_scope_mismatch["evidence_manifest_reference"]["scope"]["case_id"] = "case_other"
+    manifest_scope_mismatch["content_hash"] = compute_action_content_hash(manifest_scope_mismatch)
+    manifest_scope_mismatch["idempotency_key"] = compute_idempotency_key(manifest_scope_mismatch)
+    _validate_schema("action-instruction", manifest_scope_mismatch)
+    with pytest.raises(PydanticValidationError, match="evidence manifest"):
+        validate_contract_document("action-instruction", manifest_scope_mismatch)
+
+
+def test_source_observation_order_is_stable_for_canonical_identity() -> None:
+    document = deepcopy(_load("action-instruction.json"))
+    second_source = deepcopy(document["source_observation_versions"][0])
+    second_source["observation_id"] = "obs_confirmation_002"
+    second_source["content_hash"] = (
+        "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    )
+    document["source_observation_versions"].append(second_source)
+    document["content_hash"] = compute_action_content_hash(document)
+    document["idempotency_key"] = compute_idempotency_key(document)
+
+    reversed_document = deepcopy(document)
+    reversed_document["source_observation_versions"] = list(
+        reversed(reversed_document["source_observation_versions"])
+    )
+
+    assert compute_action_content_hash(reversed_document) == document["content_hash"]
+    assert compute_idempotency_key(reversed_document) == document["idempotency_key"]
+    reversed_document["content_hash"] = compute_action_content_hash(reversed_document)
+    reversed_document["idempotency_key"] = compute_idempotency_key(reversed_document)
+    _validate_schema("action-instruction", reversed_document)
+    validate_contract_document("action-instruction", reversed_document)
+
+
 def test_idempotency_key_binds_the_locked_material() -> None:
     document = _load("action-instruction.json")
     changed = deepcopy(document)
     changed["trade_id"] = "trade_fx_002"
+    changed["source_observation_versions"][0]["scope"]["trade_id"] = changed["trade_id"]
+    changed["evidence_manifest_reference"]["scope"]["trade_id"] = changed["trade_id"]
 
     _validate_schema("action-instruction", changed)
     with pytest.raises(PydanticValidationError, match="content_hash"):
@@ -120,6 +184,35 @@ def test_source_observation_evidence_requires_source_version_and_hash() -> None:
         _validate_schema("evidence-item", document)
     with pytest.raises(PydanticValidationError, match="source observation evidence"):
         validate_contract_document("evidence-item", document)
+
+
+def test_source_evidence_scope_and_kind_are_bound_to_the_evidence_item() -> None:
+    scope_mismatch = deepcopy(_load("evidence-item.json"))
+    scope_mismatch["source_reference"]["scope"]["portfolio_id"] = "portfolio_other"
+    _validate_schema("evidence-item", scope_mismatch)
+    with pytest.raises(PydanticValidationError, match="evidence source reference"):
+        validate_contract_document("evidence-item", scope_mismatch)
+
+    missing_source_metadata = deepcopy(_load("evidence-item.json"))
+    missing_source_metadata["source_reference"].pop("observation_kind")
+    with pytest.raises(ValidationError):
+        _validate_schema("evidence-item", missing_source_metadata)
+    with pytest.raises(PydanticValidationError, match="all-or-none"):
+        validate_contract_document("evidence-item", missing_source_metadata)
+
+    wrong_source_system = deepcopy(_load("evidence-item.json"))
+    wrong_source_system["source_reference"]["source_system"] = "FIX_EXECUTION"
+    with pytest.raises(ValidationError):
+        _validate_schema("evidence-item", wrong_source_system)
+    with pytest.raises(PydanticValidationError, match="source_system"):
+        validate_contract_document("evidence-item", wrong_source_system)
+
+    wrong_source_id = deepcopy(_load("evidence-item.json"))
+    wrong_source_id["source_reference"]["reference_id"] = "policy_001"
+    with pytest.raises(ValidationError):
+        _validate_schema("evidence-item", wrong_source_id)
+    with pytest.raises(PydanticValidationError, match="source reference ID"):
+        validate_contract_document("evidence-item", wrong_source_id)
 
 
 def test_evidence_revision_and_redacted_derivative_links_fail_closed() -> None:

@@ -13,7 +13,15 @@
   },
   "source_observation_versions": [
     {
-      "observation_id": "confirmation_001",
+      "observation_id": "obs_confirmation_001",
+      "observation_kind": "CONFIRMATION",
+      "source_system": "FPML_CONFIRMATION",
+      "scope": {
+        "tenant_id": "tenant_demo",
+        "portfolio_id": "portfolio_sydney",
+        "case_id": "case_001",
+        "trade_id": "trade_fx_001"
+      },
       "source_version": "1",
       "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
@@ -51,8 +59,8 @@
   "not_before": "2026-08-01T07:00:30Z",
   "expires_at": "2026-08-01T08:00:00Z",
   "single_use_nonce": "nonce_20260801_000001",
-  "idempotency_key": "idem:1df771a47895209169de062bc064e3ed907ec5b8fceb305a8256ea04fcb53dac",
-  "content_hash": "sha256:6609e51e022b84a93640abbd73cf55c783afd62dabb3436568d1febe7b5623bc",
+  "idempotency_key": "idem:8e67e3fdd6ba455672a84dc7b1978d2ba8389b03826208a83a26e6bd6e94e631",
+  "content_hash": "sha256:4acf3ac19a9872b65bb63db71fda4ce39567defe80fbc9f0cb4f7e474ec2e8ac",
   "cancellation_revocation_lookup_reference": {
     "reference_id": "revocation_lookup_001",
     "version": 1
@@ -60,6 +68,12 @@
   "evidence_manifest_reference": {
     "manifest_id": "evidence_manifest_001",
     "manifest_version": 1,
-    "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "scope": {
+      "tenant_id": "tenant_demo",
+      "portfolio_id": "portfolio_sydney",
+      "case_id": "case_001",
+      "trade_id": "trade_fx_001"
+    }
   }
 }

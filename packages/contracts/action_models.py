@@ -22,9 +22,11 @@ from .models import (
     ContractModel,
     CorrelationId,
     Identifier,
+    ObservationKind,
     PortfolioId,
     SchemaVersion,
     Sha256,
+    SourceSystem,
     SourceVersion,
     TenantId,
 )
@@ -52,6 +54,14 @@ EvidenceId = Annotated[
 ArtifactId = Annotated[
     str,
     StringConstraints(pattern=r"^artifact_[a-z0-9][a-z0-9_-]*$", min_length=3, max_length=128),
+]
+SourceObservationId = Annotated[
+    str,
+    StringConstraints(
+        pattern=r"^obs_(execution|trade_capture|confirmation|booking)_[a-z0-9][a-z0-9_-]*$",
+        min_length=3,
+        max_length=128,
+    ),
 ]
 EvidenceKind: TypeAlias = Literal[
     "SOURCE_OBSERVATION_HASH",
@@ -101,6 +111,29 @@ MediaType = Annotated[
 ]
 
 
+_SOURCE_SYSTEM_BY_OBSERVATION_KIND: dict[str, str] = {
+    "EXECUTION": "FIX_EXECUTION",
+    "TRADE_CAPTURE": "FIX_TRADE_CAPTURE",
+    "CONFIRMATION": "FPML_CONFIRMATION",
+    "BOOKING": "MOCK_LEGACY_BOOKING",
+}
+_SOURCE_OBSERVATION_PREFIX_BY_KIND: dict[str, str] = {
+    "EXECUTION": "obs_execution_",
+    "TRADE_CAPTURE": "obs_trade_capture_",
+    "CONFIRMATION": "obs_confirmation_",
+    "BOOKING": "obs_booking_",
+}
+
+
+class ReferenceScope(ContractModel):
+    """The case/trade scope a source or manifest reference is allowed to serve."""
+
+    tenant_id: TenantId
+    portfolio_id: PortfolioId
+    case_id: Identifier
+    trade_id: Identifier
+
+
 class VersionReference(ContractModel):
     """A version-pinned reference consumed by an instruction or evidence item."""
 
@@ -109,15 +142,29 @@ class VersionReference(ContractModel):
 
 
 class SourceObservationVersionReference(ContractModel):
-    observation_id: Identifier
+    observation_id: SourceObservationId
+    observation_kind: ObservationKind
+    source_system: SourceSystem
+    scope: ReferenceScope
     source_version: SourceVersion
     content_hash: Sha256
+
+    @model_validator(mode="after")
+    def source_system_matches_kind(self) -> SourceObservationVersionReference:
+        expected_source_system = _SOURCE_SYSTEM_BY_OBSERVATION_KIND[self.observation_kind]
+        if self.source_system != expected_source_system:
+            raise ValueError("source_system must match observation_kind")
+        expected_prefix = _SOURCE_OBSERVATION_PREFIX_BY_KIND[self.observation_kind]
+        if not self.observation_id.startswith(expected_prefix):
+            raise ValueError("observation_id must match observation_kind")
+        return self
 
 
 class EvidenceManifestReference(ContractModel):
     manifest_id: Identifier
     manifest_version: int = Field(ge=1)
     content_hash: Sha256
+    scope: ReferenceScope
 
 
 class FinalSubmitControl(ContractModel):
@@ -149,7 +196,10 @@ _HASH_EXCLUDED_FIELDS = frozenset(
 
 def _json_mapping(document: Mapping[str, Any] | ContractModel) -> dict[str, Any]:
     if isinstance(document, ContractModel):
-        return document.model_dump(mode="json", exclude_none=False)
+        # Keep datetime objects typed until canonical encoding.  In particular,
+        # arbitrary action values must not be guessed to be timestamps merely
+        # because they contain a ``T``.
+        return document.model_dump(mode="python", exclude_none=False)
     return dict(document)
 
 
@@ -164,7 +214,12 @@ def _canonical_json_bytes(document: Mapping[str, Any]) -> bytes:
 
 
 def _normalise_json_value(value: Any) -> Any:
-    """Normalise JSON-compatible values used by canonical encoding v1."""
+    """Normalise typed values used by canonical encoding v1.
+
+    Only actual ``datetime`` values are timestamp-normalised.  Strings remain
+    byte-exact because action values are opaque approved payload values and
+    must not collide through heuristic ISO parsing.
+    """
 
     if isinstance(value, datetime):
         return value.isoformat().replace("+00:00", "Z")
@@ -172,13 +227,28 @@ def _normalise_json_value(value: Any) -> Any:
         return {key: _normalise_json_value(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_normalise_json_value(item) for item in value]
-    if isinstance(value, str) and "T" in value:
-        try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return value
-        return parsed.isoformat().replace("+00:00", "Z")
     return value
+
+
+def _source_observation_sort_key(value: Any) -> tuple[str, ...]:
+    """Return the documented stable tuple for source-reference canonical order."""
+
+    if not isinstance(value, Mapping):
+        return (str(value),)
+    scope = value.get("scope")
+    if not isinstance(scope, Mapping):
+        scope = {}
+    return (
+        str(scope.get("tenant_id", "")),
+        str(scope.get("portfolio_id", "")),
+        str(scope.get("case_id", "")),
+        str(scope.get("trade_id", "")),
+        str(value.get("observation_id", "")),
+        str(value.get("source_version", "")),
+        str(value.get("content_hash", "")),
+        str(value.get("observation_kind", "")),
+        str(value.get("source_system", "")),
+    )
 
 
 def canonical_action_payload(
@@ -195,6 +265,15 @@ def canonical_action_payload(
     locked_values = {
         key: value for key, value in values.items() if key not in _HASH_EXCLUDED_FIELDS
     }
+    source_observations = locked_values.get("source_observation_versions")
+    if isinstance(source_observations, list):
+        # The consumed source set is semantically unordered.  Sorting here
+        # keeps the same set bound to one draft identity regardless of input
+        # traversal order, while preserving order for every other list field.
+        locked_values["source_observation_versions"] = sorted(
+            source_observations,
+            key=_source_observation_sort_key,
+        )
     return _canonical_json_bytes(locked_values)
 
 
@@ -295,6 +374,16 @@ class SignedActionInstruction(ContractModel):
         source_ids = [item.observation_id for item in self.source_observation_versions]
         if len(source_ids) != len(set(source_ids)):
             raise ValueError("source_observation_versions observation IDs must be unique")
+        expected_scope = ReferenceScope(
+            tenant_id=self.tenant_id,
+            portfolio_id=self.portfolio_id,
+            case_id=self.case_id,
+            trade_id=self.trade_id,
+        )
+        if any(item.scope != expected_scope for item in self.source_observation_versions):
+            raise ValueError("source observations must match the instruction scope")
+        if self.evidence_manifest_reference.scope != expected_scope:
+            raise ValueError("evidence manifest must match the instruction scope")
         if self.maker_decision_version.reference_id == self.checker_decision_version.reference_id:
             raise ValueError("maker and checker decision references must be distinct")
 
@@ -320,8 +409,29 @@ class SignedActionInstruction(ContractModel):
 class EvidenceReference(ContractModel):
     reference_id: Identifier
     reference_version: int = Field(ge=1)
+    scope: ReferenceScope | None = None
+    observation_kind: ObservationKind | None = None
+    source_system: SourceSystem | None = None
     source_version: SourceVersion | None = None
     content_hash: Sha256 | None = None
+
+    @model_validator(mode="after")
+    def validate_source_metadata(self) -> EvidenceReference:
+        metadata = (self.scope, self.observation_kind, self.source_system)
+        if any(value is not None for value in metadata) and not all(
+            value is not None for value in metadata
+        ):
+            raise ValueError(
+                "source reference scope, observation_kind, and source_system are all-or-none"
+            )
+        if self.observation_kind is not None:
+            expected_source_system = _SOURCE_SYSTEM_BY_OBSERVATION_KIND[self.observation_kind]
+            if self.source_system != expected_source_system:
+                raise ValueError("source_system must match observation_kind")
+            expected_prefix = _SOURCE_OBSERVATION_PREFIX_BY_KIND[self.observation_kind]
+            if not self.reference_id.startswith(expected_prefix):
+                raise ValueError("source reference ID must match observation_kind")
+        return self
 
 
 class EvidenceItem(ContractModel):
@@ -350,6 +460,7 @@ class EvidenceItem(ContractModel):
     tenant_id: TenantId
     portfolio_id: PortfolioId
     case_id: Identifier
+    trade_id: Identifier
     correlation_id: CorrelationId
     evidence_kind: EvidenceKind
     source_reference: EvidenceReference
@@ -389,6 +500,25 @@ class EvidenceItem(ContractModel):
                 raise ValueError(
                     "source observation evidence requires source_version and source content_hash"
                 )
+            if (
+                self.source_reference.scope is None
+                or self.source_reference.observation_kind is None
+                or self.source_reference.source_system is None
+            ):
+                raise ValueError(
+                    "source observation evidence requires typed scope and source metadata"
+                )
+        expected_scope = ReferenceScope(
+            tenant_id=self.tenant_id,
+            portfolio_id=self.portfolio_id,
+            case_id=self.case_id,
+            trade_id=self.trade_id,
+        )
+        if (
+            self.source_reference.scope is not None
+            and self.source_reference.scope != expected_scope
+        ):
+            raise ValueError("evidence source reference must match the evidence scope")
         return self
 
 
@@ -401,7 +531,9 @@ __all__ = [
     "EvidenceManifestReference",
     "EvidenceReference",
     "FinalSubmitControl",
+    "ReferenceScope",
     "SignedActionInstruction",
+    "SourceObservationId",
     "SourceObservationVersionReference",
     "VersionReference",
     "canonical_action_payload",
