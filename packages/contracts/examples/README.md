@@ -11,9 +11,11 @@ The valid observations and canonical projections cover both FX Spot and FX
 Forward and keep execution, trade capture, confirmation, and booking as
 separate observation kinds. The TS-4 fixtures cover the exact trade-break
 taxonomy, Spot/Forward break conditions, lifecycle resolution evidence, and
-deterministic priority inputs. The negative fixtures cover unsupported versions,
+deterministic priority inputs, including an immutable reopened break version
+linked to its prior record. The negative fixtures cover unsupported versions,
 temporal availability, decimal scale, deterministic linkage decision/reason
 combinations, cross-scope candidates and sources, provenance scope, duplicate
 source identity semantics, invalid break transitions, and conflicting break
-severity. Targeted contract tests also assert field-provenance key binding and
-fail-closed settlement-rule and break-rule version handling.
+severity, including same-ID reopening. Targeted contract tests also assert
+field-provenance key binding and fail-closed settlement-rule and break-rule
+version handling.

@@ -90,8 +90,13 @@ NO_ACTION_DISPOSITION_PENDING → VERIFYING → RESOLVED | ESCALATED`.
 
 `RESOLVED` requires a new reconciliation run whose source-version set proves
 the invariant passes, except for an owner-approved non-action disposition.
-Reopening creates a new break version linked to the prior break. Deletion and
-silent mutation are prohibited.
+Reopening creates a new immutable break record with a new, non-reused
+`break_id`, an incremented `break_version`, and `supersedes_break_id` pointing
+to the prior record. The reopened record starts at `OPEN` with a `DETECTED`
+transition; its record-version lineage is separate from the lifecycle state
+transition matrix. Deletion and silent mutation are prohibited. Persistence can
+therefore use `break_id` as the record primary key and follow
+`supersedes_break_id` to find the current lineage head.
 
 ### 6. Causal-label boundary
 
@@ -108,6 +113,9 @@ ground truth.
 - Decimal orientation/rounding tests and explicit tolerance-boundary tests.
 - Replay, late-arrival and corrected-source tests prove deterministic reopening
   and resolution.
+- A positive reopen fixture proves a new `break_id`, incremented
+  `break_version`, prior-record linkage, and a fresh `OPEN` record version;
+  same-ID reopening is rejected.
 - Cross-portfolio and ambiguous-link tests cannot produce an actionable case.
 - `POST_ACTION_VERIFICATION_FAILURE` tests cover unexpected-field changes and
   persistent original breaks.

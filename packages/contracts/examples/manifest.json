@@ -14,7 +14,8 @@
     "break-taxonomy.json": "break-taxonomy",
     "trade-break-missing-execution.json": "trade-break",
     "trade-break-economic-forward.json": "trade-break",
-    "trade-break-resolved.json": "trade-break"
+    "trade-break-resolved.json": "trade-break",
+    "trade-break-reopened.json": "trade-break"
   },
   "invalid": {
     "execution-unsupported-schema.json": {
@@ -118,6 +119,12 @@
       "schema_rejects": false,
       "pydantic_rejects": true,
       "reason": "source evidence must remain inside the break tenant and portfolio scope"
+    },
+    "trade-break-reopen-same-id.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "a reopened record must mint a new break ID rather than self-link"
     }
   }
 }

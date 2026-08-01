@@ -73,12 +73,16 @@ def test_spot_forward_and_resolved_break_examples_validate() -> None:
     spot = validate_contract_document("trade-break", _break("trade-break-missing-execution.json"))
     forward = validate_contract_document("trade-break", _break("trade-break-economic-forward.json"))
     resolved = validate_contract_document("trade-break", _break("trade-break-resolved.json"))
+    reopened = validate_contract_document("trade-break", _break("trade-break-reopened.json"))
 
     assert spot.product_type == "FX_SPOT"
     assert forward.product_type == "FX_FORWARD"
     assert resolved.state == "RESOLVED"
     assert resolved.resolution is not None
     assert resolved.resolution.resolution_type == "RECONCILIATION_PASS"
+    assert reopened.break_version == 2
+    assert reopened.supersedes_break_id == "break_value_date_resolved_001"
+    assert reopened.state == "OPEN"
 
 
 def test_missing_confirmation_source_uses_medium_severity() -> None:
@@ -191,5 +195,14 @@ def test_resolved_break_supports_human_non_action_and_rejects_agent_approval() -
     document["resolution"]["approver"]["identity_type"] = "AGENT"
     with pytest.raises(ValidationError):
         _validate_schema("trade-break", document)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("trade-break", document)
+
+
+def test_reopened_break_must_mint_a_new_record_id() -> None:
+    document = _break("trade-break-reopened.json")
+    document["supersedes_break_id"] = document["break_id"]
+
+    _validate_schema("trade-break", document)
     with pytest.raises(PydanticValidationError):
         validate_contract_document("trade-break", document)

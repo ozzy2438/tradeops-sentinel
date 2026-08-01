@@ -1351,6 +1351,8 @@ class TradeBreak(ContractModel):
             raise ValueError("break version one must not supersede another break")
         if self.break_version > 1 and self.supersedes_break_id is None:
             raise ValueError("reopened break versions must reference the prior break")
+        if self.break_version > 1 and self.supersedes_break_id == self.break_id:
+            raise ValueError("reopened break versions must mint a new break_id")
 
         if self.state == "RESOLVED":
             if self.resolved_at is None or self.resolution is None:

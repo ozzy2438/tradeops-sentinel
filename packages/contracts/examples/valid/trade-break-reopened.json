@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_value_date_reopened_002",
+  "break_version": 2,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "correlation_id": "corr_break_date_reopen_002",
+  "trade_id": "trade_fx_forward_002",
+  "canonical_state_version": 4,
+  "reconciliation_run_id": "run_recon_004",
+  "product_type": "FX_FORWARD",
+  "family": "TRADE_OR_VALUE_DATE_MISMATCH",
+  "condition_code": "EXACT_TRADE_VALUE_DATE",
+  "severity": "HIGH",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "MATERIAL",
+    "deadline_status": "DUE",
+    "case_age_seconds": 120,
+    "ordering_key": [1, 2, 2, -120]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_execution_forward_002",
+      "observation_kind": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "1",
+      "content_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    {
+      "source_observation_id": "obs_confirmation_forward_002",
+      "observation_kind": "CONFIRMATION",
+      "source_system": "FPML_CONFIRMATION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "2",
+      "content_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+    }
+  ],
+  "evaluated_field_paths": ["/payload/value_date"],
+  "comparisons": [
+    {
+      "field_path": "/payload/value_date",
+      "value_type": "DATE",
+      "expected_value": "2026-08-05",
+      "observed_value": "2026-08-06",
+      "tolerance": {"mode": "NONE", "value": null},
+      "normalisation_rule_version": "1.0.0"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_date_compare_reopen_002",
+      "role": "DATE_COMPARISON",
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "captured_at": "2026-08-02T09:00:00Z",
+      "source_observation_id": "obs_execution_forward_002",
+      "source_version": "1",
+      "field_path": "/payload/value_date"
+    },
+    {
+      "evidence_id": "evidence_date_rule_reopen_002",
+      "role": "NORMALISATION_RULE",
+      "content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "captured_at": "2026-08-02T09:00:00Z",
+      "source_observation_id": "obs_confirmation_forward_002",
+      "source_version": "2",
+      "field_path": "/payload/value_date"
+    }
+  ],
+  "state": "OPEN",
+  "previous_state": null,
+  "transition_reason": "DETECTED",
+  "detected_at": "2026-08-02T09:00:00Z",
+  "state_changed_at": "2026-08-02T09:00:00Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": "break_value_date_resolved_001",
+  "causal_label_id": null
+}

@@ -42,6 +42,12 @@ permitted lifecycle edges. Pydantic additionally enforces cross-field scope,
 source identity, evidence, priority, timestamp, and resolution invariants.
 Unknown taxonomy and contract versions fail closed.
 
+Break records use immutable record identity: the initial record has
+`break_version: 1` and no predecessor; a reopen mints a new non-reused
+`break_id`, increments `break_version`, and points `supersedes_break_id` at
+the prior record. The reopened record starts at `OPEN`; lifecycle transitions
+are evaluated within that new record version.
+
 ## Version and identity rules
 
 1. `schema_version` is the contract version and is currently `1.0.0`.
