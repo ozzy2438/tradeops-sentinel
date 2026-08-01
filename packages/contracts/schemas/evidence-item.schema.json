@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence-item.schema.json",
+  "title": "TS-5 ADR-012 evidence item",
+  "description": "Versioned, scoped, content-addressed evidence reference. This schema makes no WORM, immutability, non-repudiation, or legal-hold claim.",
+  "type": "object",
+  "required": [
+    "evidence_id",
+    "evidence_schema_version",
+    "evidence_version",
+    "artifact_id",
+    "artifact_version",
+    "tenant_id",
+    "portfolio_id",
+    "case_id",
+    "trade_id",
+    "correlation_id",
+    "evidence_kind",
+    "source_reference",
+    "content_hash",
+    "media_type",
+    "classification",
+    "redaction_status",
+    "producer",
+    "retention_class",
+    "captured_at",
+    "created_at"
+  ],
+  "properties": {
+    "evidence_id": {"$ref": "#/$defs/evidenceId"},
+    "evidence_schema_version": {"const": "1.0.0"},
+    "evidence_version": {"type": "integer", "minimum": 1},
+    "artifact_id": {"$ref": "#/$defs/artifactId"},
+    "artifact_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Immutable artifact version under the stable artifact_id."
+    },
+    "tenant_id": {"$ref": "common.schema.json#/$defs/tenantId"},
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/portfolioId"},
+    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "trade_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "correlation_id": {"$ref": "common.schema.json#/$defs/correlationId"},
+    "evidence_kind": {
+      "enum": [
+        "SOURCE_OBSERVATION_HASH",
+        "NORMALISED_OBSERVATION",
+        "CANONICAL_STATE",
+        "RECONCILIATION_RESULT",
+        "RULE_VERSION",
+        "MODEL_VERSION",
+        "PROMPT_VERSION",
+        "CORPUS_VERSION",
+        "POLICY_VERSION",
+        "TOOL_CALL",
+        "AGENT_OUTPUT",
+        "CITATION_VALIDATION",
+        "REVIEW_REQUEST",
+        "MAKER_DECISION",
+        "CHECKER_DECISION",
+        "ELIGIBILITY_DECISION",
+        "ACTION_DRAFT",
+        "SIGNED_INSTRUCTION",
+        "DISPATCH_ATTEMPT",
+        "EXECUTOR_RECEIPT",
+        "PRE_ACTION_READ",
+        "POST_ACTION_READ",
+        "CHANGED_FIELD_DIFF",
+        "AUDIT_EVENT",
+        "RELEASE_BUILD",
+        "CONFIGURATION_TUPLE",
+        "EVIDENCE_MANIFEST"
+      ]
+    },
+    "source_reference": {"$ref": "#/$defs/evidenceReference"},
+    "content_hash": {"$ref": "common.schema.json#/$defs/sha256"},
+    "media_type": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$"
+    },
+    "classification": {
+      "enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]
+    },
+    "redaction_status": {
+      "enum": [
+        "NOT_REQUIRED",
+        "RESTRICTED_ORIGINAL",
+        "REDACTED_DERIVATIVE",
+        "REDACTION_FAILED"
+      ]
+    },
+    "producer": {"$ref": "common.schema.json#/$defs/actor"},
+    "retention_class": {"enum": ["STANDARD", "RESTRICTED", "SHORT_LIVED"]},
+    "captured_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "supersedes_evidence_id": {
+      "anyOf": [
+        {"$ref": "#/$defs/evidenceId"},
+        {"type": "null"}
+      ]
+    },
+    "derivative_of_evidence_id": {
+      "anyOf": [
+        {"$ref": "#/$defs/evidenceId"},
+        {"type": "null"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"evidence_version": {"const": 1}}, "required": ["evidence_version"]},
+      "then": {
+        "properties": {
+          "supersedes_evidence_id": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"evidence_version": {"minimum": 2}},
+        "required": ["evidence_version"]
+      },
+      "then": {
+        "properties": {
+          "supersedes_evidence_id": {
+            "$ref": "#/$defs/evidenceId"
+          }
+        },
+        "required": ["supersedes_evidence_id"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"redaction_status": {"const": "REDACTED_DERIVATIVE"}},
+        "required": ["redaction_status"]
+      },
+      "then": {
+        "properties": {
+          "derivative_of_evidence_id": {
+            "$ref": "#/$defs/evidenceId"
+          }
+        },
+        "required": ["derivative_of_evidence_id"]
+      }
+    },
+    {
+      "if": {
+        "properties": {"redaction_status": {"not": {"const": "REDACTED_DERIVATIVE"}}},
+        "required": ["redaction_status"]
+      },
+      "then": {
+        "properties": {
+          "derivative_of_evidence_id": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"evidence_kind": {"const": "SOURCE_OBSERVATION_HASH"}},
+        "required": ["evidence_kind"]
+      },
+      "then": {
+        "properties": {
+            "source_reference": {
+            "properties": {
+              "reference_id": {
+                "$ref": "#/$defs/sourceObservationId"
+              },
+              "scope": {
+                "$ref": "common.schema.json#/$defs/referenceScope"
+              },
+              "observation_kind": {
+                "$ref": "common.schema.json#/$defs/observationKind"
+              },
+              "source_system": {
+                "$ref": "common.schema.json#/$defs/sourceSystem"
+              },
+              "source_version": {
+                "$ref": "common.schema.json#/$defs/sourceVersion"
+              },
+              "content_hash": {
+                "$ref": "common.schema.json#/$defs/sha256"
+              }
+            },
+            "required": [
+              "scope",
+              "observation_kind",
+              "source_system",
+              "source_version",
+              "content_hash"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sourceObservationId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^obs_(execution|trade_capture|confirmation|booking)_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Typed identity of a TS-3 source observation."
+    },
+    "evidenceId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^evidence_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Immutable evidence-record identity."
+    },
+    "artifactId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^artifact_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Stable logical identity for a stored artifact."
+    },
+    "evidenceReference": {
+      "type": "object",
+      "required": ["reference_id", "reference_version"],
+      "properties": {
+        "reference_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "reference_version": {"type": "integer", "minimum": 1},
+        "scope": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/referenceScope"},
+            {"type": "null"}
+          ]
+        },
+        "observation_kind": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/observationKind"},
+            {"type": "null"}
+          ]
+        },
+        "source_system": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/sourceSystem"},
+            {"type": "null"}
+          ]
+        },
+        "source_version": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/sourceVersion"},
+            {"type": "null"}
+          ]
+        },
+        "content_hash": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_execution_"},
+                "observation_kind": {"const": "EXECUTION"},
+                "source_system": {"const": "FIX_EXECUTION"}
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_trade_capture_"},
+                "observation_kind": {"const": "TRADE_CAPTURE"},
+                "source_system": {"const": "FIX_TRADE_CAPTURE"}
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_confirmation_"},
+                "observation_kind": {"const": "CONFIRMATION"},
+                "source_system": {"const": "FPML_CONFIRMATION"}
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "reference_id": {"pattern": "^obs_booking_"},
+                "observation_kind": {"const": "BOOKING"},
+                "source_system": {"const": "MOCK_LEGACY_BOOKING"}
+              }
+            },
+            {
+              "not": {
+                "anyOf": [
+                  {"required": ["scope"]},
+                  {"required": ["observation_kind"]},
+                  {"required": ["source_system"]}
+                ]
+              }
+            },
+            {
+              "required": ["scope", "observation_kind", "source_system"],
+              "properties": {
+                "scope": {"type": "null"},
+                "observation_kind": {"type": "null"},
+                "source_system": {"type": "null"}
+              }
+            }
+          ]
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -64,6 +64,18 @@ The idempotency key binds tenant, portfolio, trade, action type, target booking
 version, normalised old/new values and draft hash. At-least-once delivery is
 expected; the claim is at-most-one semantic action per key, not exactly once.
 
+Consumed source-observation references and the evidence-manifest reference carry
+the same tenant/portfolio/case/trade scope as the instruction. Source
+observations are typed by observation kind and source system, and their IDs use
+the existing `obs_<kind>_...` namespace. The consumed source set is treated as
+unordered for identity and sorted by a documented stable tuple before draft
+hashing. Typed timestamps, and strings at the four explicitly-known action
+timestamp paths (`issued_at`, `not_before`, `expires_at`, and
+`final_submit_control.lease_expires_at`), are canonicalised to UTC with `Z`
+before hashing, including when mapping inputs use a non-zero offset. Arbitrary
+approved old/new value strings remain byte-exact; a string is never treated as
+a timestamp merely because it resembles ISO-8601.
+
 ### 3. Signature and key boundary
 
 The instruction uses an asymmetric signature with an explicit key ID and

@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "action-instruction.schema.json",
+  "title": "TS-5 non-executable signed-action instruction",
+  "description": "Typed action draft/envelope. This schema does not sign, verify, dispatch, or execute an instruction.",
+  "type": "object",
+  "required": [
+    "instruction_id",
+    "instruction_schema_version",
+    "action_type",
+    "tenant_id",
+    "portfolio_id",
+    "case_id",
+    "trade_id",
+    "target_booking_id",
+    "canonical_state_version",
+    "source_observation_versions",
+    "reconciliation_version",
+    "recommendation_version",
+    "policy_version",
+    "maker_decision_version",
+    "checker_decision_version",
+    "target_field_path",
+    "normalised_expected_old_value",
+    "exact_approved_new_value",
+    "target_booking_version",
+    "final_submit_control",
+    "issued_at",
+    "not_before",
+    "expires_at",
+    "single_use_nonce",
+    "idempotency_key",
+    "content_hash",
+    "cancellation_revocation_lookup_reference",
+    "evidence_manifest_reference"
+  ],
+  "properties": {
+    "instruction_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "instruction_schema_version": {"const": "1.0.0"},
+    "action_type": {"const": "SET_CONFIRMATION_REFERENCE"},
+    "tenant_id": {"$ref": "common.schema.json#/$defs/tenantId"},
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/portfolioId"},
+    "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "trade_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "target_booking_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "canonical_state_version": {"$ref": "#/$defs/versionReference"},
+    "source_observation_versions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/sourceObservationVersionReference"}
+    },
+    "reconciliation_version": {"$ref": "#/$defs/versionReference"},
+    "recommendation_version": {"$ref": "#/$defs/versionReference"},
+    "policy_version": {"$ref": "#/$defs/versionReference"},
+    "maker_decision_version": {"$ref": "#/$defs/versionReference"},
+    "checker_decision_version": {"$ref": "#/$defs/versionReference"},
+    "target_field_path": {"const": "/payload/confirmation_reference"},
+    "normalised_expected_old_value": {
+      "anyOf": [
+        {"type": "string", "maxLength": 128},
+        {"type": "null"}
+      ]
+    },
+    "exact_approved_new_value": {"type": "string", "minLength": 1, "maxLength": 128},
+    "target_booking_version": {"type": "integer", "minimum": 1},
+    "final_submit_control": {"$ref": "#/$defs/finalSubmitControl"},
+    "issued_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "not_before": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "expires_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "single_use_nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,128}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^idem:[0-9a-f]{64}$"
+    },
+    "content_hash": {"$ref": "common.schema.json#/$defs/sha256"},
+    "signer_key_id": {
+      "anyOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"type": "null"}
+      ]
+    },
+    "signature_algorithm": {
+      "anyOf": [
+        {"const": "ED25519"},
+        {"type": "null"}
+      ]
+    },
+    "signature": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 4096,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+        },
+        {"type": "null"}
+      ]
+    },
+    "cancellation_revocation_lookup_reference": {"$ref": "#/$defs/versionReference"},
+    "evidence_manifest_reference": {"$ref": "#/$defs/evidenceManifestReference"}
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        {
+          "properties": {
+            "signer_key_id": {"type": "null"},
+            "signature_algorithm": {"type": "null"},
+            "signature": {"type": "null"}
+          }
+        },
+        {
+          "required": ["signer_key_id", "signature_algorithm", "signature"],
+          "properties": {
+            "signer_key_id": {"$ref": "common.schema.json#/$defs/identifier"},
+            "signature_algorithm": {"const": "ED25519"},
+            "signature": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 4096,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sourceObservationId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^obs_(execution|trade_capture|confirmation|booking)_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Typed identity of a TS-3 source observation."
+    },
+    "versionReference": {
+      "type": "object",
+      "required": ["reference_id", "version"],
+      "properties": {
+        "reference_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "version": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "sourceObservationVersionReference": {
+      "type": "object",
+      "required": [
+        "observation_id",
+        "observation_kind",
+        "source_system",
+        "scope",
+        "source_version",
+        "content_hash"
+      ],
+      "properties": {
+        "observation_id": {"$ref": "#/$defs/sourceObservationId"},
+        "observation_kind": {"$ref": "common.schema.json#/$defs/observationKind"},
+        "source_system": {"$ref": "common.schema.json#/$defs/sourceSystem"},
+        "scope": {"$ref": "common.schema.json#/$defs/referenceScope"},
+        "source_version": {"$ref": "common.schema.json#/$defs/sourceVersion"},
+        "content_hash": {"$ref": "common.schema.json#/$defs/sha256"}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "observation_kind": {"const": "EXECUTION"},
+            "source_system": {"const": "FIX_EXECUTION"},
+            "observation_id": {"pattern": "^obs_execution_"}
+          }
+        },
+        {
+          "properties": {
+            "observation_kind": {"const": "TRADE_CAPTURE"},
+            "source_system": {"const": "FIX_TRADE_CAPTURE"},
+            "observation_id": {"pattern": "^obs_trade_capture_"}
+          }
+        },
+        {
+          "properties": {
+            "observation_kind": {"const": "CONFIRMATION"},
+            "source_system": {"const": "FPML_CONFIRMATION"},
+            "observation_id": {"pattern": "^obs_confirmation_"}
+          }
+        },
+        {
+          "properties": {
+            "observation_kind": {"const": "BOOKING"},
+            "source_system": {"const": "MOCK_LEGACY_BOOKING"},
+            "observation_id": {"pattern": "^obs_booking_"}
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "evidenceManifestReference": {
+      "type": "object",
+      "required": ["manifest_id", "manifest_version", "content_hash", "scope"],
+      "properties": {
+        "manifest_id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "manifest_version": {"type": "integer", "minimum": 1},
+        "content_hash": {"$ref": "common.schema.json#/$defs/sha256"},
+        "scope": {"$ref": "common.schema.json#/$defs/referenceScope"}
+      },
+      "additionalProperties": false
+    },
+    "finalSubmitControl": {
+      "type": "object",
+      "required": ["control_type", "control_reference", "lease_expires_at"],
+      "properties": {
+        "control_type": {"enum": ["CAS", "LEASE"]},
+        "control_reference": {"$ref": "common.schema.json#/$defs/identifier"},
+        "lease_expires_at": {
+          "anyOf": [
+            {"$ref": "common.schema.json#/$defs/timestamp"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "control_type": {"const": "CAS"},
+            "lease_expires_at": {"type": "null"}
+          }
+        },
+        {
+          "properties": {
+            "control_type": {"const": "LEASE"},
+            "lease_expires_at": {"$ref": "common.schema.json#/$defs/timestamp"}
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

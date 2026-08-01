@@ -28,7 +28,9 @@
     "trade-break-post-action-forward.json": "trade-break",
     "trade-break-resolved.json": "trade-break",
     "trade-break-date-spot.json": "trade-break",
-    "trade-break-reopened.json": "trade-break"
+    "trade-break-reopened.json": "trade-break",
+    "action-instruction.json": "action-instruction",
+    "evidence-item.json": "evidence-item"
   },
   "invalid": {
     "execution-unsupported-schema.json": {
