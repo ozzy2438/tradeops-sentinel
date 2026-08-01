@@ -10,7 +10,25 @@
     "canonical-trade-state-forward.json": "canonical-trade-state",
     "linkage-accepted.json": "linkage-decision",
     "identity-policy.json": "identity-policy",
-    "source-of-truth-policy.json": "source-of-truth-policy"
+    "source-of-truth-policy.json": "source-of-truth-policy",
+    "break-taxonomy.json": "break-taxonomy",
+    "trade-break-missing-execution.json": "trade-break",
+    "trade-break-missing-execution-forward.json": "trade-break",
+    "trade-break-ambiguous-linkage.json": "trade-break",
+    "trade-break-ambiguous-linkage-forward.json": "trade-break",
+    "trade-break-duplicate-source.json": "trade-break",
+    "trade-break-duplicate-source-spot.json": "trade-break",
+    "trade-break-currency-side.json": "trade-break",
+    "trade-break-currency-side-forward.json": "trade-break",
+    "trade-break-economic-forward.json": "trade-break",
+    "trade-break-economic-spot.json": "trade-break",
+    "trade-break-lifecycle-status.json": "trade-break",
+    "trade-break-lifecycle-status-spot.json": "trade-break",
+    "trade-break-post-action.json": "trade-break",
+    "trade-break-post-action-forward.json": "trade-break",
+    "trade-break-resolved.json": "trade-break",
+    "trade-break-date-spot.json": "trade-break",
+    "trade-break-reopened.json": "trade-break"
   },
   "invalid": {
     "execution-unsupported-schema.json": {
@@ -90,6 +108,60 @@
       "schema_rejects": false,
       "pydantic_rejects": true,
       "reason": "non-cross-scope decisions cannot contain cross-scope candidates"
+    },
+    "trade-break-unsupported-version.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "unsupported detection rule version fails closed"
+    },
+    "trade-break-invalid-transition.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "resolved state requires a verifying predecessor and resolution proof"
+    },
+    "trade-break-severity-conflict.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "execution-source absence uses high severity, not confirmation severity"
+    },
+    "trade-break-cross-scope-source.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "source evidence must remain inside the break tenant and portfolio scope"
+    },
+    "trade-break-reopen-same-id.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "a reopened record must mint a new break ID rather than self-link"
+    },
+    "trade-break-resolution-evidence-mismatch.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "resolution evidence IDs must cite the declared reconciliation role"
+    },
+    "trade-break-resolution-duplicate-evidence.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "resolution evidence IDs must be unique"
+    },
+    "trade-break-resolution-unknown-evidence.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "resolution evidence IDs must reference known break evidence"
+    },
+    "trade-break-duplicate-condition.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "duplicate source conflict must bind one source key and version to distinct content"
     }
   }
 }

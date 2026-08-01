@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_lifecycle_status_spot_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_melbourne",
+  "correlation_id": "corr_break_lifecycle_spot_001",
+  "trade_id": "trade_fx_lifecycle_spot_001",
+  "canonical_state_version": 1,
+  "reconciliation_run_id": "run_recon_lifecycle_001",
+  "product_type": "FX_SPOT",
+  "family": "LIFECYCLE_STATUS_MISMATCH",
+  "condition_code": "ALLOWED_LIFECYCLE_RELATION",
+  "severity": "HIGH",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "UNASSESSED",
+    "deadline_status": "DUE",
+    "case_age_seconds": 480,
+    "ordering_key": [
+      2,
+      2,
+      2,
+      -480
+    ]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_confirmation_lifecycle_001",
+      "observation_kind": "CONFIRMATION",
+      "source_system": "FPML_CONFIRMATION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_melbourne",
+      "source_version": "1",
+      "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "source_business_key": "trade_fx_lifecycle_001_spot_source"
+    },
+    {
+      "source_observation_id": "obs_booking_lifecycle_001",
+      "observation_kind": "BOOKING",
+      "source_system": "MOCK_LEGACY_BOOKING",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_melbourne",
+      "source_version": "1",
+      "content_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "source_business_key": "trade_fx_lifecycle_001_spot_source"
+    }
+  ],
+  "evaluated_field_paths": [
+    "/payload/lifecycle_status"
+  ],
+  "comparisons": [
+    {
+      "field_path": "/payload/lifecycle_status",
+      "value_type": "LIFECYCLE_STATUS",
+      "expected_value": "CONFIRMED",
+      "observed_value": "BOOKED",
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": [
+        "evidence_lifecycle_relation_001",
+        "evidence_lifecycle_rule_001"
+      ],
+      "expected_source_observation_id": "obs_confirmation_lifecycle_001",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_booking_lifecycle_001",
+      "observed_source_version": "1"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_lifecycle_relation_001",
+      "role": "LIFECYCLE_RELATION",
+      "content_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "captured_at": "2026-08-01T12:30:00Z",
+      "source_observation_id": "obs_confirmation_lifecycle_001",
+      "source_version": "1",
+      "field_path": "/payload/lifecycle_status"
+    },
+    {
+      "evidence_id": "evidence_lifecycle_rule_001",
+      "role": "NORMALISATION_RULE",
+      "content_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "captured_at": "2026-08-01T12:30:01Z",
+      "source_observation_id": "obs_booking_lifecycle_001",
+      "source_version": "1",
+      "field_path": "/payload/lifecycle_status"
+    }
+  ],
+  "missing_source_expectation": null,
+  "state": "UNDER_INVESTIGATION",
+  "previous_state": "OPEN",
+  "transition_reason": "BEGIN_INVESTIGATION",
+  "detected_at": "2026-08-01T12:30:00Z",
+  "state_changed_at": "2026-08-01T12:30:02Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": null,
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_SPOT",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-03"
+  },
+  "duplicate_source_conflict": null
+}

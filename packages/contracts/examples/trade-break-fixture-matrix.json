@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "scope": "MVP_SYNTHETIC_FX",
+  "products": ["FX_SPOT", "FX_FORWARD"],
+  "families": [
+    {"family": "MISSING_REQUIRED_SOURCE", "spot_fixture": "trade-break-missing-execution.json", "forward_fixture": "trade-break-missing-execution-forward.json", "boundary": "detected_at equals expected_by and source arrival window is typed", "negative": "TRADE_CAPTURE is not an expected missing source"},
+    {"family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE", "spot_fixture": "trade-break-ambiguous-linkage.json", "forward_fixture": "trade-break-ambiguous-linkage-forward.json", "boundary": "candidate count is explicitly typed", "negative": "lifecycle field cannot represent linkage count"},
+    {"family": "DUPLICATE_SOURCE_CONFLICT", "spot_fixture": "trade-break-duplicate-source-spot.json", "forward_fixture": "trade-break-duplicate-source.json", "boundary": "same key and version require distinct content hashes", "negative": "lifecycle field cannot represent source identity"},
+    {"family": "CURRENCY_PAIR_OR_SIDE_MISMATCH", "spot_fixture": "trade-break-currency-side.json", "forward_fixture": "trade-break-currency-side-forward.json", "boundary": "currency operands are bound to canonical currency fields", "negative": "decimal field cannot represent currency pair"},
+    {"family": "ECONOMIC_VALUE_MISMATCH", "spot_fixture": "trade-break-economic-spot.json", "forward_fixture": "trade-break-economic-forward.json", "boundary": "decimal comparison retains explicit tolerance", "negative": "lifecycle field cannot represent decimal value"},
+    {"family": "TRADE_OR_VALUE_DATE_MISMATCH", "spot_fixture": "trade-break-date-spot.json", "forward_fixture": "trade-break-resolved.json", "boundary": "dates remain ISO calendar dates", "negative": "lifecycle field cannot represent a date"},
+    {"family": "LIFECYCLE_STATUS_MISMATCH", "spot_fixture": "trade-break-lifecycle-status-spot.json", "forward_fixture": "trade-break-lifecycle-status.json", "boundary": "status values remain closed vocabulary", "negative": "decimal field cannot represent lifecycle status"},
+    {"family": "POST_ACTION_VERIFICATION_FAILURE", "spot_fixture": "trade-break-post-action.json", "forward_fixture": "trade-break-post-action-forward.json", "boundary": "read-back values remain explicit and distinct", "negative": "date field cannot represent read-back status"}
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_economic_forward_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_melbourne",
+  "correlation_id": "corr_break_economic_001",
+  "trade_id": "trade_fx_forward_001",
+  "canonical_state_version": 2,
+  "reconciliation_run_id": "run_recon_002",
+  "product_type": "FX_FORWARD",
+  "family": "ECONOMIC_VALUE_MISMATCH",
+  "condition_code": "DECIMAL_OUTSIDE_TOLERANCE",
+  "severity": "CRITICAL",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "UNASSESSED",
+    "deadline_status": "DUE",
+    "case_age_seconds": 600,
+    "ordering_key": [
+      2,
+      1,
+      2,
+      -600
+    ]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_execution_forward_001",
+      "observation_kind": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_melbourne",
+      "source_version": "1",
+      "content_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "source_business_key": "trade_fx_forward_001_source"
+    },
+    {
+      "source_observation_id": "obs_booking_forward_001",
+      "observation_kind": "BOOKING",
+      "source_system": "MOCK_LEGACY_BOOKING",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_melbourne",
+      "source_version": "1",
+      "content_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "source_business_key": "trade_fx_forward_001_source"
+    }
+  ],
+  "evaluated_field_paths": [
+    "/payload/base_amount"
+  ],
+  "comparisons": [
+    {
+      "field_path": "/payload/base_amount",
+      "value_type": "DECIMAL",
+      "expected_value": "100000.00",
+      "observed_value": "100100.00",
+      "tolerance": {
+        "mode": "ABSOLUTE_DECIMAL",
+        "value": "0.01"
+      },
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": [
+        "evidence_decimal_forward_001",
+        "evidence_normalisation_forward_001"
+      ],
+      "expected_source_observation_id": "obs_execution_forward_001",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_booking_forward_001",
+      "observed_source_version": "1"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_decimal_forward_001",
+      "role": "DECIMAL_COMPARISON",
+      "content_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "captured_at": "2026-08-01T10:00:00Z",
+      "source_observation_id": "obs_execution_forward_001",
+      "source_version": "1",
+      "field_path": "/payload/base_amount"
+    },
+    {
+      "evidence_id": "evidence_normalisation_forward_001",
+      "role": "NORMALISATION_RULE",
+      "content_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "captured_at": "2026-08-01T10:00:00Z",
+      "source_observation_id": "obs_booking_forward_001",
+      "source_version": "1",
+      "field_path": "/payload/base_amount"
+    }
+  ],
+  "missing_source_expectation": null,
+  "state": "UNDER_INVESTIGATION",
+  "previous_state": "OPEN",
+  "transition_reason": "BEGIN_INVESTIGATION",
+  "detected_at": "2026-08-01T09:50:00Z",
+  "state_changed_at": "2026-08-01T10:00:00Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": null,
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-15"
+  },
+  "duplicate_source_conflict": null
+}

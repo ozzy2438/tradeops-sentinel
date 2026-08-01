@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_currency_side_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "correlation_id": "corr_break_currency_001",
+  "trade_id": "trade_fx_currency_001",
+  "canonical_state_version": 1,
+  "reconciliation_run_id": "run_recon_currency_001",
+  "product_type": "FX_SPOT",
+  "family": "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+  "condition_code": "EXACT_CURRENCY_PAIR_SIDE",
+  "severity": "CRITICAL",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "MATERIAL",
+    "deadline_status": "DUE",
+    "case_age_seconds": 240,
+    "ordering_key": [
+      1,
+      1,
+      2,
+      -240
+    ]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_execution_currency_001",
+      "observation_kind": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "1",
+      "content_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "source_business_key": "trade_fx_currency_001_source"
+    },
+    {
+      "source_observation_id": "obs_confirmation_currency_001",
+      "observation_kind": "CONFIRMATION",
+      "source_system": "FPML_CONFIRMATION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "1",
+      "content_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "source_business_key": "trade_fx_currency_001_source"
+    }
+  ],
+  "evaluated_field_paths": [
+    "/payload/base_currency"
+  ],
+  "comparisons": [
+    {
+      "field_path": "/payload/base_currency",
+      "value_type": "CURRENCY",
+      "expected_value": "AUD",
+      "observed_value": "NZD",
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": [
+        "evidence_currency_field_001",
+        "evidence_currency_rule_001"
+      ],
+      "expected_source_observation_id": "obs_execution_currency_001",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_confirmation_currency_001",
+      "observed_source_version": "1"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_currency_field_001",
+      "role": "FIELD_COMPARISON",
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "captured_at": "2026-08-01T12:20:00Z",
+      "source_observation_id": "obs_execution_currency_001",
+      "source_version": "1",
+      "field_path": "/payload/base_currency"
+    },
+    {
+      "evidence_id": "evidence_currency_rule_001",
+      "role": "NORMALISATION_RULE",
+      "content_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "captured_at": "2026-08-01T12:20:01Z",
+      "source_observation_id": "obs_confirmation_currency_001",
+      "source_version": "1",
+      "field_path": "/payload/base_currency"
+    }
+  ],
+  "missing_source_expectation": null,
+  "state": "UNDER_INVESTIGATION",
+  "previous_state": "OPEN",
+  "transition_reason": "BEGIN_INVESTIGATION",
+  "detected_at": "2026-08-01T12:20:00Z",
+  "state_changed_at": "2026-08-01T12:20:02Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": null,
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_SPOT",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-03"
+  },
+  "duplicate_source_conflict": null
+}

@@ -1,0 +1,407 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "break-taxonomy.schema.json",
+  "title": "Deterministic FX trade-break taxonomy and lifecycle policy",
+  "description": "The exact eight-family MVP symptom taxonomy, deterministic severity/priority ordering, and permitted break lifecycle transitions.",
+  "$defs": {
+    "breakFamily": {
+      "enum": [
+        "MISSING_REQUIRED_SOURCE",
+        "AMBIGUOUS_OR_UNMATCHED_LINKAGE",
+        "DUPLICATE_SOURCE_CONFLICT",
+        "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+        "ECONOMIC_VALUE_MISMATCH",
+        "TRADE_OR_VALUE_DATE_MISMATCH",
+        "LIFECYCLE_STATUS_MISMATCH",
+        "POST_ACTION_VERIFICATION_FAILURE"
+      ]
+    },
+    "conditionCode": {
+      "enum": [
+        "MISSING_SOURCE_AFTER_WATERMARK",
+        "LINKAGE_CANDIDATE_SCOPE_INVARIANT",
+        "DUPLICATE_SOURCE_IDENTITY_CONTENT",
+        "EXACT_CURRENCY_PAIR_SIDE",
+        "DECIMAL_OUTSIDE_TOLERANCE",
+        "EXACT_TRADE_VALUE_DATE",
+        "ALLOWED_LIFECYCLE_RELATION",
+        "POST_ACTION_READBACK_RECONCILIATION"
+      ]
+    },
+    "severity": {
+      "enum": ["CRITICAL", "HIGH", "MEDIUM"]
+    },
+    "severityRule": {
+      "enum": ["FIXED", "MISSING_SOURCE_BY_OBSERVATION_KIND"]
+    },
+    "evidenceRole": {
+      "enum": [
+        "INGESTION_WATERMARK",
+        "EXPECTED_SOURCE",
+        "CANDIDATE_LINK",
+        "LINKAGE_DECISION",
+        "SOURCE_PAYLOAD_PAIR",
+        "SOURCE_METADATA",
+        "FIELD_COMPARISON",
+        "NORMALISATION_RULE",
+        "DECIMAL_COMPARISON",
+        "DATE_COMPARISON",
+        "LIFECYCLE_RELATION",
+        "ACTION_INSTRUCTION",
+        "PRE_ACTION_READ",
+        "POST_ACTION_READ",
+        "CHANGED_FIELD_DIFF",
+        "RECONCILIATION_RESULT",
+        "DISPOSITION_APPROVAL"
+      ]
+    },
+    "resolutionCode": {
+      "enum": [
+        "SOURCE_OR_RECONCILIATION_PASS_OR_AUTHORISED_NON_ACTION",
+        "LINKAGE_DECISION_AND_RECONCILIATION_PASS",
+        "SOURCE_CORRECTION_OR_SUPERSESSION_AND_RECONCILIATION_PASS",
+        "AGREEMENT_AFTER_CORRECTION_AND_RECONCILIATION_PASS",
+        "WITHIN_TOLERANCE_AND_RECONCILIATION_PASS",
+        "DATES_AGREE_AND_RECONCILIATION_PASS",
+        "ALLOWED_LIFECYCLE_RELATION_AND_RECONCILIATION_PASS",
+        "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION"
+      ]
+    },
+    "lifecycleState": {
+      "enum": [
+        "OPEN",
+        "UNDER_INVESTIGATION",
+        "RESOLUTION_PROPOSED",
+        "ACTION_PENDING",
+        "NO_ACTION_DISPOSITION_PENDING",
+        "VERIFYING",
+        "RESOLVED",
+        "ESCALATED"
+      ]
+    },
+    "transitionReason": {
+      "enum": [
+        "DETECTED",
+        "BEGIN_INVESTIGATION",
+        "PROPOSE_RESOLUTION",
+        "ACTION_AUTHORISATION_PENDING",
+        "NO_ACTION_DISPOSITION_PENDING",
+        "BEGIN_VERIFICATION",
+        "RESOLUTION_VERIFIED",
+        "ESCALATE"
+      ]
+    },
+    "familyDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "definition",
+        "condition_code",
+        "default_severity",
+        "severity_rule",
+        "required_evidence_roles",
+        "resolution_code"
+      ],
+      "properties": {
+        "family": {"$ref": "#/$defs/breakFamily"},
+        "definition": {"type": "string", "minLength": 1},
+        "condition_code": {"$ref": "#/$defs/conditionCode"},
+        "default_severity": {"$ref": "#/$defs/severity"},
+        "severity_rule": {"$ref": "#/$defs/severityRule"},
+        "required_evidence_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/evidenceRole"}
+        },
+        "resolution_code": {"$ref": "#/$defs/resolutionCode"}
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "family": {"const": "MISSING_REQUIRED_SOURCE"},
+            "condition_code": {"const": "MISSING_SOURCE_AFTER_WATERMARK"},
+            "default_severity": {"const": "HIGH"},
+            "severity_rule": {"const": "MISSING_SOURCE_BY_OBSERVATION_KIND"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "INGESTION_WATERMARK"}},
+                {"contains": {"const": "EXPECTED_SOURCE"}}
+              ]
+            },
+            "resolution_code": {"const": "SOURCE_OR_RECONCILIATION_PASS_OR_AUTHORISED_NON_ACTION"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "AMBIGUOUS_OR_UNMATCHED_LINKAGE"},
+            "condition_code": {"const": "LINKAGE_CANDIDATE_SCOPE_INVARIANT"},
+            "default_severity": {"const": "HIGH"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "CANDIDATE_LINK"}},
+                {"contains": {"const": "LINKAGE_DECISION"}}
+              ]
+            },
+            "resolution_code": {"const": "LINKAGE_DECISION_AND_RECONCILIATION_PASS"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "DUPLICATE_SOURCE_CONFLICT"},
+            "condition_code": {"const": "DUPLICATE_SOURCE_IDENTITY_CONTENT"},
+            "default_severity": {"const": "HIGH"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "SOURCE_PAYLOAD_PAIR"}},
+                {"contains": {"const": "SOURCE_METADATA"}}
+              ]
+            },
+            "resolution_code": {"const": "SOURCE_CORRECTION_OR_SUPERSESSION_AND_RECONCILIATION_PASS"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "CURRENCY_PAIR_OR_SIDE_MISMATCH"},
+            "condition_code": {"const": "EXACT_CURRENCY_PAIR_SIDE"},
+            "default_severity": {"const": "CRITICAL"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "FIELD_COMPARISON"}},
+                {"contains": {"const": "NORMALISATION_RULE"}}
+              ]
+            },
+            "resolution_code": {"const": "AGREEMENT_AFTER_CORRECTION_AND_RECONCILIATION_PASS"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "ECONOMIC_VALUE_MISMATCH"},
+            "condition_code": {"const": "DECIMAL_OUTSIDE_TOLERANCE"},
+            "default_severity": {"const": "CRITICAL"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "DECIMAL_COMPARISON"}},
+                {"contains": {"const": "NORMALISATION_RULE"}}
+              ]
+            },
+            "resolution_code": {"const": "WITHIN_TOLERANCE_AND_RECONCILIATION_PASS"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "TRADE_OR_VALUE_DATE_MISMATCH"},
+            "condition_code": {"const": "EXACT_TRADE_VALUE_DATE"},
+            "default_severity": {"const": "HIGH"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "DATE_COMPARISON"}},
+                {"contains": {"const": "NORMALISATION_RULE"}}
+              ]
+            },
+            "resolution_code": {"const": "DATES_AGREE_AND_RECONCILIATION_PASS"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "LIFECYCLE_STATUS_MISMATCH"},
+            "condition_code": {"const": "ALLOWED_LIFECYCLE_RELATION"},
+            "default_severity": {"const": "HIGH"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "LIFECYCLE_RELATION"}},
+                {"contains": {"const": "NORMALISATION_RULE"}}
+              ]
+            },
+            "resolution_code": {"const": "ALLOWED_LIFECYCLE_RELATION_AND_RECONCILIATION_PASS"}
+          }
+        },
+        {
+          "properties": {
+            "family": {"const": "POST_ACTION_VERIFICATION_FAILURE"},
+            "condition_code": {"const": "POST_ACTION_READBACK_RECONCILIATION"},
+            "default_severity": {"const": "CRITICAL"},
+            "severity_rule": {"const": "FIXED"},
+            "required_evidence_roles": {
+              "allOf": [
+                {"contains": {"const": "ACTION_INSTRUCTION"}},
+                {"contains": {"const": "PRE_ACTION_READ"}},
+                {"contains": {"const": "POST_ACTION_READ"}},
+                {"contains": {"const": "CHANGED_FIELD_DIFF"}},
+                {"contains": {"const": "RECONCILIATION_RESULT"}}
+              ]
+            },
+            "resolution_code": {"const": "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION"}
+          }
+        }
+      ]
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_state", "to_state", "reason_code"],
+      "properties": {
+        "from_state": {
+          "anyOf": [{"$ref": "#/$defs/lifecycleState"}, {"type": "null"}]
+        },
+        "to_state": {"$ref": "#/$defs/lifecycleState"},
+        "reason_code": {"$ref": "#/$defs/transitionReason"}
+      },
+      "oneOf": [
+        {"properties": {"from_state": {"type": "null"}, "to_state": {"const": "OPEN"}, "reason_code": {"const": "DETECTED"}}},
+        {"properties": {"from_state": {"const": "OPEN"}, "to_state": {"const": "UNDER_INVESTIGATION"}, "reason_code": {"const": "BEGIN_INVESTIGATION"}}},
+        {"properties": {"from_state": {"const": "OPEN"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}},
+        {"properties": {"from_state": {"const": "UNDER_INVESTIGATION"}, "to_state": {"const": "RESOLUTION_PROPOSED"}, "reason_code": {"const": "PROPOSE_RESOLUTION"}}},
+        {"properties": {"from_state": {"const": "UNDER_INVESTIGATION"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}},
+        {"properties": {"from_state": {"const": "RESOLUTION_PROPOSED"}, "to_state": {"const": "ACTION_PENDING"}, "reason_code": {"const": "ACTION_AUTHORISATION_PENDING"}}},
+        {"properties": {"from_state": {"const": "RESOLUTION_PROPOSED"}, "to_state": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "reason_code": {"const": "NO_ACTION_DISPOSITION_PENDING"}}},
+        {"properties": {"from_state": {"const": "RESOLUTION_PROPOSED"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}},
+        {"properties": {"from_state": {"const": "ACTION_PENDING"}, "to_state": {"const": "VERIFYING"}, "reason_code": {"const": "BEGIN_VERIFICATION"}}},
+        {"properties": {"from_state": {"const": "ACTION_PENDING"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}},
+        {"properties": {"from_state": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "to_state": {"const": "VERIFYING"}, "reason_code": {"const": "BEGIN_VERIFICATION"}}},
+        {"properties": {"from_state": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}},
+        {"properties": {"from_state": {"const": "VERIFYING"}, "to_state": {"const": "RESOLVED"}, "reason_code": {"const": "RESOLUTION_VERIFIED"}}},
+        {"properties": {"from_state": {"const": "VERIFYING"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "taxonomy_version",
+    "scope",
+    "families",
+    "lifecycle_states",
+    "allowed_transitions",
+    "priority_policy"
+  ],
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schemaVersion"},
+    "taxonomy_version": {"const": "1.0.0"},
+    "scope": {"const": "MVP_SYNTHETIC_FX"},
+    "families": {
+      "type": "array",
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "MISSING_REQUIRED_SOURCE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "AMBIGUOUS_OR_UNMATCHED_LINKAGE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "DUPLICATE_SOURCE_CONFLICT"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "CURRENCY_PAIR_OR_SIDE_MISMATCH"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "ECONOMIC_VALUE_MISMATCH"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "TRADE_OR_VALUE_DATE_MISMATCH"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "LIFECYCLE_STATUS_MISMATCH"}}}]},
+        {"allOf": [{"$ref": "#/$defs/familyDefinition"}, {"properties": {"family": {"const": "POST_ACTION_VERIFICATION_FAILURE"}}}]}
+      ],
+      "items": false,
+      "minItems": 8,
+      "maxItems": 8
+    },
+    "lifecycle_states": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "OPEN"},
+        {"const": "UNDER_INVESTIGATION"},
+        {"const": "RESOLUTION_PROPOSED"},
+        {"const": "ACTION_PENDING"},
+        {"const": "NO_ACTION_DISPOSITION_PENDING"},
+        {"const": "VERIFYING"},
+        {"const": "RESOLVED"},
+        {"const": "ESCALATED"}
+      ],
+      "items": false,
+      "minItems": 8,
+      "maxItems": 8
+    },
+    "allowed_transitions": {
+      "type": "array",
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"type": "null"}, "to_state": {"const": "OPEN"}, "reason_code": {"const": "DETECTED"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "OPEN"}, "to_state": {"const": "UNDER_INVESTIGATION"}, "reason_code": {"const": "BEGIN_INVESTIGATION"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "OPEN"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "UNDER_INVESTIGATION"}, "to_state": {"const": "RESOLUTION_PROPOSED"}, "reason_code": {"const": "PROPOSE_RESOLUTION"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "UNDER_INVESTIGATION"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "RESOLUTION_PROPOSED"}, "to_state": {"const": "ACTION_PENDING"}, "reason_code": {"const": "ACTION_AUTHORISATION_PENDING"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "RESOLUTION_PROPOSED"}, "to_state": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "reason_code": {"const": "NO_ACTION_DISPOSITION_PENDING"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "RESOLUTION_PROPOSED"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "ACTION_PENDING"}, "to_state": {"const": "VERIFYING"}, "reason_code": {"const": "BEGIN_VERIFICATION"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "ACTION_PENDING"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "to_state": {"const": "VERIFYING"}, "reason_code": {"const": "BEGIN_VERIFICATION"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "VERIFYING"}, "to_state": {"const": "RESOLVED"}, "reason_code": {"const": "RESOLUTION_VERIFIED"}}}]},
+        {"allOf": [{"$ref": "#/$defs/transition"}, {"properties": {"from_state": {"const": "VERIFYING"}, "to_state": {"const": "ESCALATED"}, "reason_code": {"const": "ESCALATE"}}}]}
+      ],
+      "items": false,
+      "minItems": 14,
+      "maxItems": 14
+    },
+    "priority_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["materiality_order", "severity_order", "deadline_order", "tie_breakers"],
+      "properties": {
+        "materiality_order": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "MATERIAL"},
+            {"const": "UNASSESSED"},
+            {"const": "NON_MATERIAL"}
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "severity_order": {
+          "type": "array",
+          "prefixItems": [{"const": "CRITICAL"}, {"const": "HIGH"}, {"const": "MEDIUM"}],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "deadline_order": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "OVERDUE"},
+            {"const": "DUE"},
+            {"const": "NO_CONFIGURED_DEADLINE"}
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "tie_breakers": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "MATERIALITY_BAND"},
+            {"const": "SEVERITY"},
+            {"const": "LIFECYCLE_DEADLINE"},
+            {"const": "CASE_AGE"}
+          ],
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    }
+  },
+  "allOf": [
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "MISSING_REQUIRED_SOURCE"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "AMBIGUOUS_OR_UNMATCHED_LINKAGE"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "DUPLICATE_SOURCE_CONFLICT"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "CURRENCY_PAIR_OR_SIDE_MISMATCH"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "ECONOMIC_VALUE_MISMATCH"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "TRADE_OR_VALUE_DATE_MISMATCH"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "LIFECYCLE_STATUS_MISMATCH"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"families": {"contains": {"properties": {"family": {"const": "POST_ACTION_VERIFICATION_FAILURE"}}, "required": ["family"]}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "OPEN"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "UNDER_INVESTIGATION"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "RESOLUTION_PROPOSED"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "ACTION_PENDING"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "NO_ACTION_DISPOSITION_PENDING"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "VERIFYING"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "RESOLVED"}, "minContains": 1, "maxContains": 1}}},
+    {"properties": {"lifecycle_states": {"contains": {"const": "ESCALATED"}, "minContains": 1, "maxContains": 1}}}
+  ]
+}

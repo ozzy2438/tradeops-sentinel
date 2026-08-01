@@ -1,18 +1,94 @@
 # packages/contracts
 
 TS-3 publishes the canonical FX contract consumed by later generator,
-persistence, and reconciliation work. It contains no database, transport,
+persistence, and reconciliation work. TS-4 adds the deterministic trade-break
+taxonomy and lifecycle contracts consumed by later inbox/outbox and
+reconciliation work. This package contains no database, transport,
 reconciliation, API, or LLM implementation.
 
 ## Contract layers
 
 - `schemas/*.schema.json` are Draft 2020-12 interchange schemas.
-- `models.py` contains strict Pydantic v2 models for the same TS-3 documents
-  and cross-field validation that JSON Schema cannot express by itself.
-- `examples/` contains valid Spot/Forward observations and canonical records,
-  plus intentionally invalid fixtures for the negative contract tests.
+- `models.py` contains strict Pydantic v2 models for the same TS-3 and TS-4
+  documents and cross-field validation that JSON Schema cannot express by
+  itself.
+- `examples/` contains valid Spot/Forward observations, canonical records, and
+  deterministic trade-break examples, plus intentionally invalid fixtures for
+  the negative contract tests.
 - `tests/test_contracts.py` validates every example against both layers and
   exercises replay, provenance, scope, version, and temporal semantics.
+- `tests/test_break_contracts.py` exercises the exact taxonomy, lifecycle
+  transition matrix, deterministic priority key, and TS-4 semantic invariants.
+
+## TS-4 break contract
+
+The `break-taxonomy` and `trade-break` documents implement
+[ADR-002](../../docs/adr/ADR-002_DETERMINISTIC_TRADE_BREAK_TAXONOMY.md) for
+[issue #4](https://github.com/ozzy2438/tradeops-sentinel/issues/4).
+
+The MVP has exactly eight break families:
+
+1. `MISSING_REQUIRED_SOURCE`
+2. `AMBIGUOUS_OR_UNMATCHED_LINKAGE`
+3. `DUPLICATE_SOURCE_CONFLICT`
+4. `CURRENCY_PAIR_OR_SIDE_MISMATCH`
+5. `ECONOMIC_VALUE_MISMATCH`
+6. `TRADE_OR_VALUE_DATE_MISMATCH`
+7. `LIFECYCLE_STATUS_MISMATCH`
+8. `POST_ACTION_VERIFICATION_FAILURE`
+
+JSON Schema enforces the closed vocabulary, family-specific combinations,
+family field/value-type matrix, and permitted lifecycle edges. Each
+comparison carries explicit `evidence_ids`; Pydantic binds those IDs to
+same-path, family-allowed evidence roles and source observations. Every
+non-missing comparison carries expected and observed source observation IDs
+plus versions; cross-source families require distinct operands. Pydantic
+additionally enforces cross-field scope, source identity, resolution type and
+role, resolution-run linkage, evidence chronology, priority, timestamp, and
+comparison invariants. Exact-value fields reject decimal tolerances, while
+only decimal amounts and rates may carry an approved numeric tolerance.
+JSON Schema enforces structural uniqueness; cross-array ID, role, and
+timestamp joins are recorded as semantic-layer checks in the fixture manifest.
+Unknown taxonomy and contract versions fail closed.
+
+`MISSING_REQUIRED_SOURCE` carries a typed `missing_source_expectation` with
+the expected observation kind and source system, field path, arrival-window
+rule version, ingestion watermark, and expected-by timestamp. The expected
+kind is limited to execution, confirmation, or booking; trade capture is an
+observed context, never an expected missing source. Its comparison field is
+the typed `/source/{execution,confirmation,booking}_observation` path rather
+than an invented payload status.
+
+Duplicate-source breaks carry a `duplicate_source_conflict` proof binding every
+source record to one source business key and version while requiring distinct
+content hashes. Canonical field comparisons are restricted to the TS-3
+source-of-truth paths (for example `/payload/base_currency`,
+`/payload/value_date`, `/payload/lifecycle_status`, `/payload/book_id`, and
+`/linkage/trade_id`).
+
+Resolved records carry `resolution.evidence_roles` alongside
+`resolution.evidence_ids`. A reconciliation resolution must cite a
+`RECONCILIATION_RESULT` captured no later than `resolved_at`, and its run ID
+must match the break run. It must also carry a structured reconciliation proof
+whose family, condition, predicate, source-version set, and field comparisons
+are bound to the break and demonstrate the family-specific pass. An
+owner-approved non-action resolution is limited to the missing-source and
+post-action families, must carry no reconciliation proof, and must cite a
+human-approved `DISPOSITION_APPROVAL`.
+
+`examples/trade-break-fixture-matrix.json` plus the manifest-driven tests use
+distinct product-specific fixtures for every family and bind each fixture's
+`product_context` to the product-specific settlement window. Targeted negative
+tests prove cross-family comparison drift, source-operand aliasing, duplicate
+source-condition drift, decimal tolerance on exact fields, structured proof
+drift, duplicate or unknown resolution IDs, chronology violations, and
+unsupported missing-source contexts fail closed.
+
+Break records use immutable record identity: the initial record has
+`break_version: 1` and no predecessor; a reopen mints a new non-reused
+`break_id`, increments `break_version`, and points `supersedes_break_id` at
+the prior record. The reopened record starts at `OPEN`; lifecycle transitions
+are evaluated within that new record version.
 
 ## Version and identity rules
 

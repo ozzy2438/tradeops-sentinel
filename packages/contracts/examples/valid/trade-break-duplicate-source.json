@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_duplicate_source_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_melbourne",
+  "correlation_id": "corr_break_duplicate_001",
+  "trade_id": "trade_fx_duplicate_001",
+  "canonical_state_version": 1,
+  "reconciliation_run_id": "run_recon_duplicate_001",
+  "product_type": "FX_FORWARD",
+  "family": "DUPLICATE_SOURCE_CONFLICT",
+  "condition_code": "DUPLICATE_SOURCE_IDENTITY_CONTENT",
+  "severity": "HIGH",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "MATERIAL",
+    "deadline_status": "OVERDUE",
+    "case_age_seconds": 900,
+    "ordering_key": [
+      1,
+      2,
+      1,
+      -900
+    ]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_execution_duplicate_001",
+      "observation_kind": "EXECUTION",
+      "source_system": "FIX_EXECUTION",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_melbourne",
+      "source_version": "1",
+      "content_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "source_business_key": "dup_001"
+    },
+    {
+      "source_observation_id": "obs_booking_duplicate_001",
+      "observation_kind": "BOOKING",
+      "source_system": "MOCK_LEGACY_BOOKING",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_melbourne",
+      "source_version": "1",
+      "content_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "source_business_key": "dup_001"
+    }
+  ],
+  "evaluated_field_paths": [
+    "/source/content_hash"
+  ],
+  "comparisons": [
+    {
+      "field_path": "/source/content_hash",
+      "value_type": "CONTENT_HASH",
+      "expected_value": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+      "observed_value": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": [
+        "evidence_source_payload_pair_001",
+        "evidence_source_metadata_001"
+      ],
+      "expected_source_observation_id": "obs_execution_duplicate_001",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_booking_duplicate_001",
+      "observed_source_version": "1"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_source_payload_pair_001",
+      "role": "SOURCE_PAYLOAD_PAIR",
+      "content_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+      "captured_at": "2026-08-01T12:10:00Z",
+      "source_observation_id": "obs_execution_duplicate_001",
+      "source_version": "1",
+      "field_path": "/source/content_hash"
+    },
+    {
+      "evidence_id": "evidence_source_metadata_001",
+      "role": "SOURCE_METADATA",
+      "content_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "captured_at": "2026-08-01T12:10:01Z",
+      "source_observation_id": "obs_booking_duplicate_001",
+      "source_version": "1",
+      "field_path": "/source/content_hash"
+    }
+  ],
+  "missing_source_expectation": null,
+  "state": "UNDER_INVESTIGATION",
+  "previous_state": "OPEN",
+  "transition_reason": "BEGIN_INVESTIGATION",
+  "detected_at": "2026-08-01T12:10:00Z",
+  "state_changed_at": "2026-08-01T12:10:02Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": null,
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-15"
+  },
+  "duplicate_source_conflict": {
+    "conflict_type": "SAME_SOURCE_KEY_VERSION_CONTENT",
+    "source_observation_ids": [
+      "obs_execution_duplicate_001",
+      "obs_booking_duplicate_001"
+    ],
+    "source_business_key": "dup_001",
+    "source_version": "1"
+  }
+}

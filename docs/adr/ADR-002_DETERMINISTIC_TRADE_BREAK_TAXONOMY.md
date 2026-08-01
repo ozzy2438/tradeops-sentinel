@@ -9,7 +9,11 @@ created: 2026-07-31
 
 ## Status
 
-Proposed. Depends on ADR-001 and requires owner approval before implementation.
+Accepted for the TS-4 contract implementation under issue #4. Depends on
+ADR-001. Owner approval is recorded in the TS-4 execution assignment; this
+decision remains limited to the deterministic contract slice and does not
+authorize persistence, reconciliation execution, UI, LLM, model, or cloud
+work.
 
 ## Context
 
@@ -28,7 +32,10 @@ Every break records:
 - deterministic `break_id`, taxonomy and rule versions;
 - tenant, portfolio, trade and reconciliation-run IDs;
 - exact source/canonical versions and field paths evaluated;
-- invariant, expected value, observed value and configured tolerance;
+- invariant, expected value, observed value, configured tolerance, and
+  family-specific value type;
+- comparison evidence IDs bound to the same field path and an allow-listed
+  family evidence role;
 - severity and deterministic priority inputs;
 - lifecycle state, detected/resolved timestamps and resolution evidence;
 - optional human disposition and separately governed causal-label reference.
@@ -61,8 +68,19 @@ not as permission to overwrite. It may additionally create
 - Dates use exact normalised dates. The MVP does not infer holidays, cut-offs or
   expected Spot/Forward tenors unless the owner approves a versioned calendar
   rule and fixtures.
+- Comparison paths are an allow-list mapped to TS-3 source-of-truth fields:
+  canonical payload fields, the approved linkage trade ID, and explicitly typed
+  source identity fields for duplicate detection. A comparison carries both
+  expected and observed source observation IDs and versions; currency,
+  economic, date, lifecycle, and duplicate families require distinct source
+  operands. Exact-value types reject decimal tolerances.
 - Missing-source windows and numeric tolerances are configuration with version,
   owner approval and effective dates; they are not model parameters.
+- A missing-source break carries a typed expected observation kind/system,
+  field path, arrival-window rule version, ingestion watermark, and expected-by
+  timestamp. Execution, confirmation, and booking are the only expected
+  kinds; trade capture may be observed context but cannot be the missing
+  expectation.
 - Until tolerances are approved, tests may use labelled fixture values but the
   system cannot claim operationally meaningful thresholds.
 
@@ -85,9 +103,23 @@ Permitted break states are:
 NO_ACTION_DISPOSITION_PENDING → VERIFYING → RESOLVED | ESCALATED`.
 
 `RESOLVED` requires a new reconciliation run whose source-version set proves
-the invariant passes, except for an owner-approved non-action disposition.
-Reopening creates a new break version linked to the prior break. Deletion and
-silent mutation are prohibited.
+the family-specific invariant passes. Resolution evidence IDs must point to
+known break evidence, declare exactly the roles of those cited records, and
+be captured no later than `resolved_at`. A reconciliation resolution must cite
+`RECONCILIATION_RESULT`, carry the same run ID as the break, and include a
+structured family-specific reconciliation-pass proof bound to the exact source
+versions and comparison operands. An owner-
+approved non-action disposition is permitted only for missing-source and
+post-action families and must cite a human-approved `DISPOSITION_APPROVAL`;
+date, lifecycle, economic, currency/side, duplicate, and linkage families
+cannot be closed by non-action.
+Reopening creates a new immutable break record with a new, non-reused
+`break_id`, an incremented `break_version`, and `supersedes_break_id` pointing
+to the prior record. The reopened record starts at `OPEN` with a `DETECTED`
+transition; its record-version lineage is separate from the lifecycle state
+transition matrix. Deletion and silent mutation are prohibited. Persistence can
+therefore use `break_id` as the record primary key and follow
+`supersedes_break_id` to find the current lineage head.
 
 ### 6. Causal-label boundary
 
@@ -101,13 +133,39 @@ ground truth.
 
 - At least one positive, boundary and negative fixture per rule for Spot and
   Forward where applicable.
+- `examples/trade-break-fixture-matrix.json` and manifest-driven tests cover
+  every family for both synthetic products using distinct product-specific
+  fixtures; each comparison is independently evaluable through its allow-listed
+  field path, value type, bound evidence IDs, and source operands.
 - Decimal orientation/rounding tests and explicit tolerance-boundary tests.
 - Replay, late-arrival and corrected-source tests prove deterministic reopening
   and resolution.
+- Resolution-role, unknown-ID, duplicate-ID, and capture-before-resolution
+  mutations fail closed in the semantic layer; schema fixtures record the
+  deliberate cross-array validation boundary.
+- Duplicate-source key/version/content binding, exact-value tolerance, and
+  structured reconciliation-proof mutations fail closed.
+- A positive reopen fixture proves a new `break_id`, incremented
+  `break_version`, prior-record linkage, and a fresh `OPEN` record version;
+  same-ID reopening is rejected.
 - Cross-portfolio and ambiguous-link tests cannot produce an actionable case.
 - `POST_ACTION_VERIFICATION_FAILURE` tests cover unexpected-field changes and
   persistent original breaks.
 - Mutation tests show LLM text and causal labels cannot change rule results.
+
+## TS-4 implementation traceability
+
+- Issue: [#4 — Deterministic Trade-Break Taxonomy and Lifecycle Contracts](https://github.com/ozzy2438/tradeops-sentinel/issues/4)
+- Models: `packages/contracts/models.py` (`BreakTaxonomy`, `TradeBreak`)
+- Schemas: `packages/contracts/schemas/break-taxonomy.schema.json` and
+  `packages/contracts/schemas/trade-break.schema.json`
+- Fixtures: `packages/contracts/examples/valid/`,
+  `packages/contracts/examples/invalid/`, and
+  `packages/contracts/examples/trade-break-fixture-matrix.json`, registered in
+  or exercised from `packages/contracts/examples/manifest.json` and
+  `tests/test_break_contracts.py`
+- Tests: `tests/test_break_contracts.py` and the manifest-driven contract tests
+- Review PR: [#20 — TS-4 deterministic trade-break taxonomy and lifecycle contracts](https://github.com/ozzy2438/tradeops-sentinel/pull/20)
 
 ## Consequences
 
@@ -128,7 +186,10 @@ ground truth.
 5. Approve whether any market-calendar rule is in MVP; otherwise dates remain
    exact source comparisons only.
 
-## Review findings closed
+## Review findings addressed in this revision
 
-Closes Honey-on-Scout H-01/H-04 and the Architecture Review requirement for a
-bounded deterministic taxonomy with an explicit symptom-versus-cause seam.
+This revision addresses the TS-4 re-review findings on family-bound
+comparisons, typed missing-source windows, resolution conditions and evidence
+chronology. Independent Scout and Fizz re-review at the resulting exact head
+is required before the protected merge; this document does not pre-claim
+their approval.

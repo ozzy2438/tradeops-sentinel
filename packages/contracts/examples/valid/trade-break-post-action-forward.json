@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "break_id": "break_post_action_forward_001",
+  "break_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "correlation_id": "corr_break_post_action_forward_001",
+  "trade_id": "trade_fx_post_action_forward_001",
+  "canonical_state_version": 1,
+  "reconciliation_run_id": "run_recon_post_action_001",
+  "product_type": "FX_FORWARD",
+  "family": "POST_ACTION_VERIFICATION_FAILURE",
+  "condition_code": "POST_ACTION_READBACK_RECONCILIATION",
+  "severity": "CRITICAL",
+  "severity_context": null,
+  "priority": {
+    "materiality_band": "MATERIAL",
+    "deadline_status": "OVERDUE",
+    "case_age_seconds": 120,
+    "ordering_key": [
+      1,
+      1,
+      1,
+      -120
+    ]
+  },
+  "source_version_set": [
+    {
+      "source_observation_id": "obs_booking_post_action_001",
+      "observation_kind": "BOOKING",
+      "source_system": "MOCK_LEGACY_BOOKING",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_sydney",
+      "source_version": "1",
+      "content_hash": "sha256:1212121212121212121212121212121212121212121212121212121212121212",
+      "source_business_key": "trade_fx_post_action_001_forward_source"
+    }
+  ],
+  "evaluated_field_paths": [
+    "/payload/book_id"
+  ],
+  "comparisons": [
+    {
+      "field_path": "/payload/book_id",
+      "value_type": "IDENTIFIER",
+      "expected_value": "book_old_001",
+      "observed_value": "book_new_001",
+      "tolerance": {
+        "mode": "NONE",
+        "value": null
+      },
+      "normalisation_rule_version": "1.0.0",
+      "evidence_ids": [
+        "evidence_action_instruction_001",
+        "evidence_pre_action_read_001",
+        "evidence_post_action_read_001",
+        "evidence_changed_field_001"
+      ],
+      "expected_source_observation_id": "obs_booking_post_action_001",
+      "expected_source_version": "1",
+      "observed_source_observation_id": "obs_booking_post_action_001",
+      "observed_source_version": "1"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "evidence_action_instruction_001",
+      "role": "ACTION_INSTRUCTION",
+      "content_hash": "sha256:1313131313131313131313131313131313131313131313131313131313131313",
+      "captured_at": "2026-08-01T12:40:00Z",
+      "source_observation_id": "obs_booking_post_action_001",
+      "source_version": "1",
+      "field_path": "/payload/book_id"
+    },
+    {
+      "evidence_id": "evidence_pre_action_read_001",
+      "role": "PRE_ACTION_READ",
+      "content_hash": "sha256:1414141414141414141414141414141414141414141414141414141414141414",
+      "captured_at": "2026-08-01T12:40:01Z",
+      "source_observation_id": "obs_booking_post_action_001",
+      "source_version": "1",
+      "field_path": "/payload/book_id"
+    },
+    {
+      "evidence_id": "evidence_post_action_read_001",
+      "role": "POST_ACTION_READ",
+      "content_hash": "sha256:1515151515151515151515151515151515151515151515151515151515151515",
+      "captured_at": "2026-08-01T12:40:02Z",
+      "source_observation_id": "obs_booking_post_action_001",
+      "source_version": "1",
+      "field_path": "/payload/book_id"
+    },
+    {
+      "evidence_id": "evidence_changed_field_001",
+      "role": "CHANGED_FIELD_DIFF",
+      "content_hash": "sha256:1616161616161616161616161616161616161616161616161616161616161616",
+      "captured_at": "2026-08-01T12:40:03Z",
+      "source_observation_id": "obs_booking_post_action_001",
+      "source_version": "1",
+      "field_path": "/payload/book_id"
+    },
+    {
+      "evidence_id": "evidence_post_action_reconciliation_001",
+      "role": "RECONCILIATION_RESULT",
+      "content_hash": "sha256:1717171717171717171717171717171717171717171717171717171717171717",
+      "captured_at": "2026-08-01T12:40:04Z",
+      "source_observation_id": null,
+      "source_version": null,
+      "field_path": "/payload/book_id"
+    }
+  ],
+  "missing_source_expectation": null,
+  "state": "UNDER_INVESTIGATION",
+  "previous_state": "OPEN",
+  "transition_reason": "BEGIN_INVESTIGATION",
+  "detected_at": "2026-08-01T12:40:00Z",
+  "state_changed_at": "2026-08-01T12:40:05Z",
+  "resolved_at": null,
+  "resolution": null,
+  "supersedes_break_id": null,
+  "causal_label_id": null,
+  "product_context": {
+    "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
+    "trade_date": "2026-08-01",
+    "value_date": "2026-08-15"
+  },
+  "duplicate_source_conflict": null
+}

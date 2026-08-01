@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0.0",
+  "taxonomy_version": "1.0.0",
+  "scope": "MVP_SYNTHETIC_FX",
+  "families": [
+    {
+      "family": "MISSING_REQUIRED_SOURCE",
+      "definition": "A required execution, confirmation or booking observation is absent after its configured deterministic arrival window.",
+      "condition_code": "MISSING_SOURCE_AFTER_WATERMARK",
+      "default_severity": "HIGH",
+      "severity_rule": "MISSING_SOURCE_BY_OBSERVATION_KIND",
+      "required_evidence_roles": ["INGESTION_WATERMARK", "EXPECTED_SOURCE"],
+      "resolution_code": "SOURCE_OR_RECONCILIATION_PASS_OR_AUTHORISED_NON_ACTION"
+    },
+    {
+      "family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE",
+      "definition": "An observation has zero or multiple eligible canonical-trade matches, or a proposed link crosses tenant or portfolio scope.",
+      "condition_code": "LINKAGE_CANDIDATE_SCOPE_INVARIANT",
+      "default_severity": "HIGH",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["CANDIDATE_LINK", "LINKAGE_DECISION"],
+      "resolution_code": "LINKAGE_DECISION_AND_RECONCILIATION_PASS"
+    },
+    {
+      "family": "DUPLICATE_SOURCE_CONFLICT",
+      "definition": "The same source business key and version has non-identical content, or two active records claim the same unique lifecycle identity.",
+      "condition_code": "DUPLICATE_SOURCE_IDENTITY_CONTENT",
+      "default_severity": "HIGH",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["SOURCE_PAYLOAD_PAIR", "SOURCE_METADATA"],
+      "resolution_code": "SOURCE_CORRECTION_OR_SUPERSESSION_AND_RECONCILIATION_PASS"
+    },
+    {
+      "family": "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+      "definition": "Normalised base and terms currencies or base-relative side disagree across required sources.",
+      "condition_code": "EXACT_CURRENCY_PAIR_SIDE",
+      "default_severity": "CRITICAL",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["FIELD_COMPARISON", "NORMALISATION_RULE"],
+      "resolution_code": "AGREEMENT_AFTER_CORRECTION_AND_RECONCILIATION_PASS"
+    },
+    {
+      "family": "ECONOMIC_VALUE_MISMATCH",
+      "definition": "Base amount, terms amount or quoted rate differs outside the approved field tolerance.",
+      "condition_code": "DECIMAL_OUTSIDE_TOLERANCE",
+      "default_severity": "CRITICAL",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["DECIMAL_COMPARISON", "NORMALISATION_RULE"],
+      "resolution_code": "WITHIN_TOLERANCE_AND_RECONCILIATION_PASS"
+    },
+    {
+      "family": "TRADE_OR_VALUE_DATE_MISMATCH",
+      "definition": "Trade date or value date differs across required sources after explicit calendar and normalisation rules.",
+      "condition_code": "EXACT_TRADE_VALUE_DATE",
+      "default_severity": "HIGH",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["DATE_COMPARISON", "NORMALISATION_RULE"],
+      "resolution_code": "DATES_AGREE_AND_RECONCILIATION_PASS"
+    },
+    {
+      "family": "LIFECYCLE_STATUS_MISMATCH",
+      "definition": "Confirmation, booking or reporting lifecycle status is inconsistent with the allowed state relation for the canonical trade.",
+      "condition_code": "ALLOWED_LIFECYCLE_RELATION",
+      "default_severity": "HIGH",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["LIFECYCLE_RELATION", "NORMALISATION_RULE"],
+      "resolution_code": "ALLOWED_LIFECYCLE_RELATION_AND_RECONCILIATION_PASS"
+    },
+    {
+      "family": "POST_ACTION_VERIFICATION_FAILURE",
+      "definition": "Read-back is unavailable, the target value or version differs, an unapproved field changed, or the original applicable break remains after action.",
+      "condition_code": "POST_ACTION_READBACK_RECONCILIATION",
+      "default_severity": "CRITICAL",
+      "severity_rule": "FIXED",
+      "required_evidence_roles": ["ACTION_INSTRUCTION", "PRE_ACTION_READ", "POST_ACTION_READ", "CHANGED_FIELD_DIFF", "RECONCILIATION_RESULT"],
+      "resolution_code": "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION"
+    }
+  ],
+  "lifecycle_states": [
+    "OPEN",
+    "UNDER_INVESTIGATION",
+    "RESOLUTION_PROPOSED",
+    "ACTION_PENDING",
+    "NO_ACTION_DISPOSITION_PENDING",
+    "VERIFYING",
+    "RESOLVED",
+    "ESCALATED"
+  ],
+  "allowed_transitions": [
+    {"from_state": null, "to_state": "OPEN", "reason_code": "DETECTED"},
+    {"from_state": "OPEN", "to_state": "UNDER_INVESTIGATION", "reason_code": "BEGIN_INVESTIGATION"},
+    {"from_state": "OPEN", "to_state": "ESCALATED", "reason_code": "ESCALATE"},
+    {"from_state": "UNDER_INVESTIGATION", "to_state": "RESOLUTION_PROPOSED", "reason_code": "PROPOSE_RESOLUTION"},
+    {"from_state": "UNDER_INVESTIGATION", "to_state": "ESCALATED", "reason_code": "ESCALATE"},
+    {"from_state": "RESOLUTION_PROPOSED", "to_state": "ACTION_PENDING", "reason_code": "ACTION_AUTHORISATION_PENDING"},
+    {"from_state": "RESOLUTION_PROPOSED", "to_state": "NO_ACTION_DISPOSITION_PENDING", "reason_code": "NO_ACTION_DISPOSITION_PENDING"},
+    {"from_state": "RESOLUTION_PROPOSED", "to_state": "ESCALATED", "reason_code": "ESCALATE"},
+    {"from_state": "ACTION_PENDING", "to_state": "VERIFYING", "reason_code": "BEGIN_VERIFICATION"},
+    {"from_state": "ACTION_PENDING", "to_state": "ESCALATED", "reason_code": "ESCALATE"},
+    {"from_state": "NO_ACTION_DISPOSITION_PENDING", "to_state": "VERIFYING", "reason_code": "BEGIN_VERIFICATION"},
+    {"from_state": "NO_ACTION_DISPOSITION_PENDING", "to_state": "ESCALATED", "reason_code": "ESCALATE"},
+    {"from_state": "VERIFYING", "to_state": "RESOLVED", "reason_code": "RESOLUTION_VERIFIED"},
+    {"from_state": "VERIFYING", "to_state": "ESCALATED", "reason_code": "ESCALATE"}
+  ],
+  "priority_policy": {
+    "materiality_order": ["MATERIAL", "UNASSESSED", "NON_MATERIAL"],
+    "severity_order": ["CRITICAL", "HIGH", "MEDIUM"],
+    "deadline_order": ["OVERDUE", "DUE", "NO_CONFIGURED_DEADLINE"],
+    "tie_breakers": ["MATERIALITY_BAND", "SEVERITY", "LIFECYCLE_DEADLINE", "CASE_AGE"]
+  }
+}
