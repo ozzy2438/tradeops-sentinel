@@ -37,7 +37,7 @@
       "source_portfolio_id": "portfolio_melbourne",
       "source_version": "1",
       "content_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-      "source_business_key": "trade_duplicate_001"
+      "source_business_key": "dup_001"
     },
     {
       "source_observation_id": "obs_booking_duplicate_001",
@@ -47,7 +47,7 @@
       "source_portfolio_id": "portfolio_melbourne",
       "source_version": "1",
       "content_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
-      "source_business_key": "trade_duplicate_001"
+      "source_business_key": "dup_001"
     }
   ],
   "evaluated_field_paths": [
@@ -116,7 +116,7 @@
       "obs_execution_duplicate_001",
       "obs_booking_duplicate_001"
     ],
-    "source_business_key": "trade_duplicate_001",
+    "source_business_key": "dup_001",
     "source_version": "1"
   }
 }
