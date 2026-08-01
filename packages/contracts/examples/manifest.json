@@ -10,7 +10,11 @@
     "canonical-trade-state-forward.json": "canonical-trade-state",
     "linkage-accepted.json": "linkage-decision",
     "identity-policy.json": "identity-policy",
-    "source-of-truth-policy.json": "source-of-truth-policy"
+    "source-of-truth-policy.json": "source-of-truth-policy",
+    "break-taxonomy.json": "break-taxonomy",
+    "trade-break-missing-execution.json": "trade-break",
+    "trade-break-economic-forward.json": "trade-break",
+    "trade-break-resolved.json": "trade-break"
   },
   "invalid": {
     "execution-unsupported-schema.json": {
@@ -90,6 +94,30 @@
       "schema_rejects": false,
       "pydantic_rejects": true,
       "reason": "non-cross-scope decisions cannot contain cross-scope candidates"
+    },
+    "trade-break-unsupported-version.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "unsupported detection rule version fails closed"
+    },
+    "trade-break-invalid-transition.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "resolved state requires a verifying predecessor and resolution proof"
+    },
+    "trade-break-severity-conflict.json": {
+      "contract": "trade-break",
+      "schema_rejects": true,
+      "pydantic_rejects": true,
+      "reason": "execution-source absence uses high severity, not confirmation severity"
+    },
+    "trade-break-cross-scope-source.json": {
+      "contract": "trade-break",
+      "schema_rejects": false,
+      "pydantic_rejects": true,
+      "reason": "source evidence must remain inside the break tenant and portfolio scope"
     }
   }
 }

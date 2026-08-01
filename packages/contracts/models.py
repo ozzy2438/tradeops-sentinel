@@ -819,6 +819,559 @@ class SourceOfTruthPolicy(ContractModel):
         return self
 
 
+# TS-4 deterministic trade-break taxonomy and lifecycle contracts.
+BreakRuleVersion: TypeAlias = Literal["1.0.0"]
+BreakFamily: TypeAlias = Literal[
+    "MISSING_REQUIRED_SOURCE",
+    "AMBIGUOUS_OR_UNMATCHED_LINKAGE",
+    "DUPLICATE_SOURCE_CONFLICT",
+    "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+    "ECONOMIC_VALUE_MISMATCH",
+    "TRADE_OR_VALUE_DATE_MISMATCH",
+    "LIFECYCLE_STATUS_MISMATCH",
+    "POST_ACTION_VERIFICATION_FAILURE",
+]
+BreakConditionCode: TypeAlias = Literal[
+    "MISSING_SOURCE_AFTER_WATERMARK",
+    "LINKAGE_CANDIDATE_SCOPE_INVARIANT",
+    "DUPLICATE_SOURCE_IDENTITY_CONTENT",
+    "EXACT_CURRENCY_PAIR_SIDE",
+    "DECIMAL_OUTSIDE_TOLERANCE",
+    "EXACT_TRADE_VALUE_DATE",
+    "ALLOWED_LIFECYCLE_RELATION",
+    "POST_ACTION_READBACK_RECONCILIATION",
+]
+BreakSeverity: TypeAlias = Literal["CRITICAL", "HIGH", "MEDIUM"]
+BreakSeverityRule: TypeAlias = Literal[
+    "FIXED",
+    "MISSING_SOURCE_BY_OBSERVATION_KIND",
+]
+BreakEvidenceRole: TypeAlias = Literal[
+    "INGESTION_WATERMARK",
+    "EXPECTED_SOURCE",
+    "CANDIDATE_LINK",
+    "LINKAGE_DECISION",
+    "SOURCE_PAYLOAD_PAIR",
+    "SOURCE_METADATA",
+    "FIELD_COMPARISON",
+    "NORMALISATION_RULE",
+    "DECIMAL_COMPARISON",
+    "DATE_COMPARISON",
+    "LIFECYCLE_RELATION",
+    "ACTION_INSTRUCTION",
+    "PRE_ACTION_READ",
+    "POST_ACTION_READ",
+    "CHANGED_FIELD_DIFF",
+    "RECONCILIATION_RESULT",
+    "DISPOSITION_APPROVAL",
+]
+BreakResolutionCode: TypeAlias = Literal[
+    "SOURCE_OR_RECONCILIATION_PASS_OR_AUTHORISED_NON_ACTION",
+    "LINKAGE_DECISION_AND_RECONCILIATION_PASS",
+    "SOURCE_CORRECTION_OR_SUPERSESSION_AND_RECONCILIATION_PASS",
+    "AGREEMENT_AFTER_CORRECTION_AND_RECONCILIATION_PASS",
+    "WITHIN_TOLERANCE_AND_RECONCILIATION_PASS",
+    "DATES_AGREE_AND_RECONCILIATION_PASS",
+    "ALLOWED_LIFECYCLE_RELATION_AND_RECONCILIATION_PASS",
+    "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION",
+]
+BreakLifecycleState: TypeAlias = Literal[
+    "OPEN",
+    "UNDER_INVESTIGATION",
+    "RESOLUTION_PROPOSED",
+    "ACTION_PENDING",
+    "NO_ACTION_DISPOSITION_PENDING",
+    "VERIFYING",
+    "RESOLVED",
+    "ESCALATED",
+]
+BreakTransitionReason: TypeAlias = Literal[
+    "DETECTED",
+    "BEGIN_INVESTIGATION",
+    "PROPOSE_RESOLUTION",
+    "ACTION_AUTHORISATION_PENDING",
+    "NO_ACTION_DISPOSITION_PENDING",
+    "BEGIN_VERIFICATION",
+    "RESOLUTION_VERIFIED",
+    "ESCALATE",
+]
+MaterialityBand: TypeAlias = Literal["MATERIAL", "UNASSESSED", "NON_MATERIAL"]
+DeadlineStatus: TypeAlias = Literal["OVERDUE", "DUE", "NO_CONFIGURED_DEADLINE"]
+PriorityTieBreaker: TypeAlias = Literal[
+    "MATERIALITY_BAND",
+    "SEVERITY",
+    "LIFECYCLE_DEADLINE",
+    "CASE_AGE",
+]
+BreakValueType: TypeAlias = Literal[
+    "ABSENCE",
+    "COUNT",
+    "CURRENCY_PAIR",
+    "SIDE",
+    "DECIMAL",
+    "DATE",
+    "LIFECYCLE_STATUS",
+    "READBACK",
+]
+ToleranceMode: TypeAlias = Literal["NONE", "ABSOLUTE_DECIMAL", "RELATIVE_DECIMAL"]
+BreakResolutionType: TypeAlias = Literal[
+    "RECONCILIATION_PASS",
+    "OWNER_APPROVED_NON_ACTION",
+]
+BreakFieldPath = Annotated[
+    str,
+    StringConstraints(pattern=r"^/(payload|linkage)/[a-z][a-z0-9_/-]*$"),
+]
+
+_BREAK_FAMILY_ORDER: tuple[BreakFamily, ...] = (
+    "MISSING_REQUIRED_SOURCE",
+    "AMBIGUOUS_OR_UNMATCHED_LINKAGE",
+    "DUPLICATE_SOURCE_CONFLICT",
+    "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+    "ECONOMIC_VALUE_MISMATCH",
+    "TRADE_OR_VALUE_DATE_MISMATCH",
+    "LIFECYCLE_STATUS_MISMATCH",
+    "POST_ACTION_VERIFICATION_FAILURE",
+)
+BreakFamilyDefinitionSpec: TypeAlias = tuple[
+    str,
+    BreakConditionCode,
+    BreakSeverity,
+    BreakSeverityRule,
+    tuple[BreakEvidenceRole, ...],
+    BreakResolutionCode,
+]
+_BREAK_FAMILY_POLICY: dict[BreakFamily, BreakFamilyDefinitionSpec] = {
+    "MISSING_REQUIRED_SOURCE": (
+        "A required execution, confirmation or booking observation is absent after its "
+        "configured deterministic arrival window.",
+        "MISSING_SOURCE_AFTER_WATERMARK",
+        "HIGH",
+        "MISSING_SOURCE_BY_OBSERVATION_KIND",
+        ("INGESTION_WATERMARK", "EXPECTED_SOURCE"),
+        "SOURCE_OR_RECONCILIATION_PASS_OR_AUTHORISED_NON_ACTION",
+    ),
+    "AMBIGUOUS_OR_UNMATCHED_LINKAGE": (
+        "An observation has zero or multiple eligible canonical-trade matches, or a proposed "
+        "link crosses tenant or portfolio scope.",
+        "LINKAGE_CANDIDATE_SCOPE_INVARIANT",
+        "HIGH",
+        "FIXED",
+        ("CANDIDATE_LINK", "LINKAGE_DECISION"),
+        "LINKAGE_DECISION_AND_RECONCILIATION_PASS",
+    ),
+    "DUPLICATE_SOURCE_CONFLICT": (
+        "The same source business key and version has non-identical content, or two active "
+        "records claim the same unique lifecycle identity.",
+        "DUPLICATE_SOURCE_IDENTITY_CONTENT",
+        "HIGH",
+        "FIXED",
+        ("SOURCE_PAYLOAD_PAIR", "SOURCE_METADATA"),
+        "SOURCE_CORRECTION_OR_SUPERSESSION_AND_RECONCILIATION_PASS",
+    ),
+    "CURRENCY_PAIR_OR_SIDE_MISMATCH": (
+        "Normalised base and terms currencies or base-relative side disagree across required "
+        "sources.",
+        "EXACT_CURRENCY_PAIR_SIDE",
+        "CRITICAL",
+        "FIXED",
+        ("FIELD_COMPARISON", "NORMALISATION_RULE"),
+        "AGREEMENT_AFTER_CORRECTION_AND_RECONCILIATION_PASS",
+    ),
+    "ECONOMIC_VALUE_MISMATCH": (
+        "Base amount, terms amount or quoted rate differs outside the approved field tolerance.",
+        "DECIMAL_OUTSIDE_TOLERANCE",
+        "CRITICAL",
+        "FIXED",
+        ("DECIMAL_COMPARISON", "NORMALISATION_RULE"),
+        "WITHIN_TOLERANCE_AND_RECONCILIATION_PASS",
+    ),
+    "TRADE_OR_VALUE_DATE_MISMATCH": (
+        "Trade date or value date differs across required sources after explicit calendar and "
+        "normalisation rules.",
+        "EXACT_TRADE_VALUE_DATE",
+        "HIGH",
+        "FIXED",
+        ("DATE_COMPARISON", "NORMALISATION_RULE"),
+        "DATES_AGREE_AND_RECONCILIATION_PASS",
+    ),
+    "LIFECYCLE_STATUS_MISMATCH": (
+        "Confirmation, booking or reporting lifecycle status is inconsistent with the allowed "
+        "state relation for the canonical trade.",
+        "ALLOWED_LIFECYCLE_RELATION",
+        "HIGH",
+        "FIXED",
+        ("LIFECYCLE_RELATION", "NORMALISATION_RULE"),
+        "ALLOWED_LIFECYCLE_RELATION_AND_RECONCILIATION_PASS",
+    ),
+    "POST_ACTION_VERIFICATION_FAILURE": (
+        "Read-back is unavailable, the target value or version differs, an unapproved field "
+        "changed, or the original applicable break remains after action.",
+        "POST_ACTION_READBACK_RECONCILIATION",
+        "CRITICAL",
+        "FIXED",
+        (
+            "ACTION_INSTRUCTION",
+            "PRE_ACTION_READ",
+            "POST_ACTION_READ",
+            "CHANGED_FIELD_DIFF",
+            "RECONCILIATION_RESULT",
+        ),
+        "VERIFIED_READBACK_OR_AUTHORISED_NON_ACTION",
+    ),
+}
+
+_BREAK_LIFECYCLE_STATES: tuple[BreakLifecycleState, ...] = (
+    "OPEN",
+    "UNDER_INVESTIGATION",
+    "RESOLUTION_PROPOSED",
+    "ACTION_PENDING",
+    "NO_ACTION_DISPOSITION_PENDING",
+    "VERIFYING",
+    "RESOLVED",
+    "ESCALATED",
+)
+_BREAK_TRANSITION_POLICY: tuple[
+    tuple[BreakLifecycleState | None, BreakLifecycleState, BreakTransitionReason], ...
+] = (
+    (None, "OPEN", "DETECTED"),
+    ("OPEN", "UNDER_INVESTIGATION", "BEGIN_INVESTIGATION"),
+    ("OPEN", "ESCALATED", "ESCALATE"),
+    ("UNDER_INVESTIGATION", "RESOLUTION_PROPOSED", "PROPOSE_RESOLUTION"),
+    ("UNDER_INVESTIGATION", "ESCALATED", "ESCALATE"),
+    ("RESOLUTION_PROPOSED", "ACTION_PENDING", "ACTION_AUTHORISATION_PENDING"),
+    (
+        "RESOLUTION_PROPOSED",
+        "NO_ACTION_DISPOSITION_PENDING",
+        "NO_ACTION_DISPOSITION_PENDING",
+    ),
+    ("RESOLUTION_PROPOSED", "ESCALATED", "ESCALATE"),
+    ("ACTION_PENDING", "VERIFYING", "BEGIN_VERIFICATION"),
+    ("ACTION_PENDING", "ESCALATED", "ESCALATE"),
+    ("NO_ACTION_DISPOSITION_PENDING", "VERIFYING", "BEGIN_VERIFICATION"),
+    ("NO_ACTION_DISPOSITION_PENDING", "ESCALATED", "ESCALATE"),
+    ("VERIFYING", "RESOLVED", "RESOLUTION_VERIFIED"),
+    ("VERIFYING", "ESCALATED", "ESCALATE"),
+)
+
+
+class BreakFamilyDefinition(ContractModel):
+    family: BreakFamily
+    definition: str = Field(min_length=1)
+    condition_code: BreakConditionCode
+    default_severity: BreakSeverity
+    severity_rule: BreakSeverityRule
+    required_evidence_roles: list[BreakEvidenceRole] = Field(min_length=1)
+    resolution_code: BreakResolutionCode
+
+
+class BreakPriorityPolicy(ContractModel):
+    materiality_order: list[MaterialityBand]
+    severity_order: list[BreakSeverity]
+    deadline_order: list[DeadlineStatus]
+    tie_breakers: list[PriorityTieBreaker]
+
+    @model_validator(mode="after")
+    def validate_ordering(self) -> BreakPriorityPolicy:
+        if self.materiality_order != ["MATERIAL", "UNASSESSED", "NON_MATERIAL"]:
+            raise ValueError("materiality_order must be MATERIAL, UNASSESSED, NON_MATERIAL")
+        if self.severity_order != ["CRITICAL", "HIGH", "MEDIUM"]:
+            raise ValueError("severity_order must be CRITICAL, HIGH, MEDIUM")
+        if self.deadline_order != ["OVERDUE", "DUE", "NO_CONFIGURED_DEADLINE"]:
+            raise ValueError("deadline_order must be OVERDUE, DUE, NO_CONFIGURED_DEADLINE")
+        if self.tie_breakers != [
+            "MATERIALITY_BAND",
+            "SEVERITY",
+            "LIFECYCLE_DEADLINE",
+            "CASE_AGE",
+        ]:
+            raise ValueError("tie_breakers must follow the approved deterministic priority tuple")
+        return self
+
+
+class BreakLifecycleTransition(ContractModel):
+    from_state: BreakLifecycleState | None
+    to_state: BreakLifecycleState
+    reason_code: BreakTransitionReason
+
+
+class BreakTaxonomy(ContractModel):
+    schema_version: SchemaVersion = "1.0.0"
+    taxonomy_version: BreakRuleVersion
+    scope: Literal["MVP_SYNTHETIC_FX"]
+    families: list[BreakFamilyDefinition] = Field(min_length=8, max_length=8)
+    lifecycle_states: list[BreakLifecycleState]
+    allowed_transitions: list[BreakLifecycleTransition] = Field(min_length=14, max_length=14)
+    priority_policy: BreakPriorityPolicy
+
+    @model_validator(mode="after")
+    def validate_taxonomy(self) -> BreakTaxonomy:
+        if [definition.family for definition in self.families] != list(_BREAK_FAMILY_ORDER):
+            raise ValueError("taxonomy must define the eight approved families in order")
+        for definition in self.families:
+            expected = _BREAK_FAMILY_POLICY[definition.family]
+            actual = (
+                definition.definition,
+                definition.condition_code,
+                definition.default_severity,
+                definition.severity_rule,
+                tuple(definition.required_evidence_roles),
+                definition.resolution_code,
+            )
+            if actual != expected:
+                raise ValueError(f"taxonomy definition for {definition.family} is not approved")
+        if self.lifecycle_states != list(_BREAK_LIFECYCLE_STATES):
+            raise ValueError("taxonomy lifecycle_states must match the approved state list")
+        transitions = tuple(
+            (transition.from_state, transition.to_state, transition.reason_code)
+            for transition in self.allowed_transitions
+        )
+        if transitions != _BREAK_TRANSITION_POLICY:
+            raise ValueError(
+                "taxonomy allowed_transitions must match the approved transition matrix"
+            )
+        return self
+
+
+class BreakSourceReference(ContractModel):
+    source_observation_id: Identifier
+    observation_kind: ObservationKind
+    source_system: SourceSystem
+    source_tenant_id: TenantId
+    source_portfolio_id: PortfolioId
+    source_version: SourceVersion
+    content_hash: Sha256
+
+    @model_validator(mode="after")
+    def source_system_matches_kind(self) -> BreakSourceReference:
+        expected_source_system = _SOURCE_SYSTEM_BY_OBSERVATION_KIND[self.observation_kind]
+        if self.source_system != expected_source_system:
+            raise ValueError("source_system must match observation_kind")
+        return self
+
+
+class BreakEvidence(ContractModel):
+    evidence_id: Identifier
+    role: BreakEvidenceRole
+    content_hash: Sha256
+    captured_at: AwareTimestamp
+    source_observation_id: Identifier | None = None
+    source_version: SourceVersion | None = None
+    field_path: BreakFieldPath | None = None
+
+    @model_validator(mode="after")
+    def source_reference_is_complete(self) -> BreakEvidence:
+        if self.source_observation_id is None and self.source_version is not None:
+            raise ValueError("source_version requires source_observation_id")
+        if self.source_observation_id is not None and self.source_version is None:
+            raise ValueError("source_observation_id requires source_version")
+        return self
+
+
+class BreakTolerance(ContractModel):
+    mode: ToleranceMode
+    value: DecimalValue | None = None
+
+    @model_validator(mode="after")
+    def value_matches_mode(self) -> BreakTolerance:
+        if self.mode == "NONE" and self.value is not None:
+            raise ValueError("NONE tolerance must not carry a value")
+        if self.mode != "NONE" and self.value is None:
+            raise ValueError("decimal tolerance requires a value")
+        return self
+
+
+class BreakComparison(ContractModel):
+    field_path: BreakFieldPath
+    value_type: BreakValueType
+    expected_value: str = Field(min_length=1)
+    observed_value: str = Field(min_length=1)
+    tolerance: BreakTolerance
+    normalisation_rule_version: BreakRuleVersion
+
+
+class BreakPriority(ContractModel):
+    materiality_band: MaterialityBand
+    deadline_status: DeadlineStatus
+    case_age_seconds: int = Field(ge=0)
+    ordering_key: tuple[int, int, int, int]
+
+
+class BreakResolution(ContractModel):
+    resolution_type: BreakResolutionType
+    reconciliation_run_id: Identifier | None = None
+    disposition_id: Identifier | None = None
+    approver: Actor | None = None
+    evidence_ids: list[Identifier] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def resolution_shape(self) -> BreakResolution:
+        if self.resolution_type == "RECONCILIATION_PASS":
+            if self.reconciliation_run_id is None:
+                raise ValueError("reconciliation-pass resolution requires reconciliation_run_id")
+            if self.disposition_id is not None or self.approver is not None:
+                raise ValueError(
+                    "reconciliation-pass resolution must not carry a disposition approver"
+                )
+        else:
+            if self.disposition_id is None or self.approver is None:
+                raise ValueError("non-action resolution requires disposition_id and approver")
+            if self.approver.identity_type != "HUMAN":
+                raise ValueError("non-action disposition must be approved by a human")
+            if self.reconciliation_run_id is not None:
+                raise ValueError("non-action resolution must not carry reconciliation_run_id")
+        return self
+
+
+_BREAK_SEVERITY_RANK: dict[BreakSeverity, int] = {
+    "CRITICAL": 1,
+    "HIGH": 2,
+    "MEDIUM": 3,
+}
+_BREAK_MATERIALITY_RANK: dict[MaterialityBand, int] = {
+    "MATERIAL": 1,
+    "UNASSESSED": 2,
+    "NON_MATERIAL": 3,
+}
+_BREAK_DEADLINE_RANK: dict[DeadlineStatus, int] = {
+    "OVERDUE": 1,
+    "DUE": 2,
+    "NO_CONFIGURED_DEADLINE": 3,
+}
+
+
+def _expected_break_severity(
+    family: BreakFamily,
+    severity_context: ObservationKind | None,
+) -> BreakSeverity:
+    expected = _BREAK_FAMILY_POLICY[family]
+    if expected[3] == "MISSING_SOURCE_BY_OBSERVATION_KIND":
+        if severity_context is None:
+            raise ValueError("missing-source breaks require severity_context")
+        return "MEDIUM" if severity_context == "CONFIRMATION" else "HIGH"
+    if severity_context is not None:
+        raise ValueError("fixed-severity breaks must not carry severity_context")
+    return expected[2]
+
+
+class TradeBreak(ContractModel):
+    schema_version: SchemaVersion = "1.0.0"
+    taxonomy_version: BreakRuleVersion
+    detection_rule_version: BreakRuleVersion
+    priority_rule_version: BreakRuleVersion
+    lifecycle_rule_version: BreakRuleVersion
+    break_id: Identifier
+    break_version: int = Field(ge=1)
+    tenant_id: TenantId
+    portfolio_id: PortfolioId
+    correlation_id: CorrelationId
+    trade_id: Identifier
+    canonical_state_version: int = Field(ge=1)
+    reconciliation_run_id: Identifier
+    product_type: ProductType
+    family: BreakFamily
+    condition_code: BreakConditionCode
+    severity: BreakSeverity
+    severity_context: ObservationKind | None = None
+    priority: BreakPriority
+    source_version_set: list[BreakSourceReference] = Field(min_length=1)
+    evaluated_field_paths: list[BreakFieldPath] = Field(min_length=1)
+    comparisons: list[BreakComparison] = Field(min_length=1)
+    evidence: list[BreakEvidence] = Field(min_length=1)
+    state: BreakLifecycleState
+    previous_state: BreakLifecycleState | None
+    transition_reason: BreakTransitionReason
+    detected_at: AwareTimestamp
+    state_changed_at: AwareTimestamp
+    resolved_at: AwareTimestamp | None = None
+    resolution: BreakResolution | None = None
+    supersedes_break_id: Identifier | None = None
+    causal_label_id: Identifier | None = None
+
+    @model_validator(mode="after")
+    def validate_break_invariants(self) -> TradeBreak:
+        expected_definition = _BREAK_FAMILY_POLICY[self.family]
+        if self.condition_code != expected_definition[1]:
+            raise ValueError("condition_code must match the selected break family")
+        if self.severity != _expected_break_severity(self.family, self.severity_context):
+            raise ValueError("severity must match the deterministic family severity rule")
+
+        source_ids = [source.source_observation_id for source in self.source_version_set]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("source_version_set observation IDs must be unique")
+        for source in self.source_version_set:
+            if (source.source_tenant_id, source.source_portfolio_id) != (
+                self.tenant_id,
+                self.portfolio_id,
+            ):
+                raise ValueError("source_version_set contains a source outside break scope")
+
+        evaluated_paths = self.evaluated_field_paths
+        if len(evaluated_paths) != len(set(evaluated_paths)):
+            raise ValueError("evaluated_field_paths must be unique")
+        comparison_paths = [comparison.field_path for comparison in self.comparisons]
+        if len(comparison_paths) != len(set(comparison_paths)):
+            raise ValueError("comparison field paths must be unique")
+        if set(evaluated_paths) != set(comparison_paths):
+            raise ValueError("evaluated_field_paths must match comparison field paths")
+
+        evidence_ids = [item.evidence_id for item in self.evidence]
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("evidence IDs must be unique")
+        required_roles = set(expected_definition[4])
+        actual_roles = {item.role for item in self.evidence}
+        if not required_roles.issubset(actual_roles):
+            missing_roles = sorted(required_roles - actual_roles)
+            raise ValueError(f"evidence is missing required roles: {missing_roles}")
+        indexed_sources = {
+            source.source_observation_id: source for source in self.source_version_set
+        }
+        for item in self.evidence:
+            if item.source_observation_id is None:
+                continue
+            matched_source = indexed_sources.get(item.source_observation_id)
+            if matched_source is None or item.source_version != matched_source.source_version:
+                raise ValueError("evidence source reference must match source_version_set")
+
+        expected_ordering_key = (
+            _BREAK_MATERIALITY_RANK[self.priority.materiality_band],
+            _BREAK_SEVERITY_RANK[self.severity],
+            _BREAK_DEADLINE_RANK[self.priority.deadline_status],
+            -self.priority.case_age_seconds,
+        )
+        if self.priority.ordering_key != expected_ordering_key:
+            raise ValueError("ordering_key must follow the deterministic priority tuple")
+
+        transition = (self.previous_state, self.state, self.transition_reason)
+        if transition not in _BREAK_TRANSITION_POLICY:
+            raise ValueError("state transition is not permitted by the lifecycle matrix")
+        if self.state_changed_at < self.detected_at:
+            raise ValueError("state_changed_at must not precede detected_at")
+        if self.break_version == 1 and self.supersedes_break_id is not None:
+            raise ValueError("break version one must not supersede another break")
+        if self.break_version > 1 and self.supersedes_break_id is None:
+            raise ValueError("reopened break versions must reference the prior break")
+
+        if self.state == "RESOLVED":
+            if self.resolved_at is None or self.resolution is None:
+                raise ValueError("resolved breaks require resolved_at and resolution evidence")
+            if self.resolved_at < self.state_changed_at:
+                raise ValueError("resolved_at must not precede state_changed_at")
+            resolution_roles = {item.role for item in self.evidence}
+            if self.resolution.resolution_type == "RECONCILIATION_PASS":
+                if "RECONCILIATION_RESULT" not in resolution_roles:
+                    raise ValueError(
+                        "reconciliation-pass resolution requires reconciliation evidence"
+                    )
+            elif "DISPOSITION_APPROVAL" not in resolution_roles:
+                raise ValueError("non-action resolution requires disposition evidence")
+            if not set(self.resolution.evidence_ids).issubset(set(evidence_ids)):
+                raise ValueError("resolution evidence IDs must reference break evidence")
+        elif self.resolved_at is not None or self.resolution is not None:
+            raise ValueError("only resolved breaks may carry resolution fields")
+        return self
+
+
 ObservationModel: TypeAlias = (
     ExecutionObservation | TradeCaptureObservation | ConfirmationObservation | BookingObservation
 )
@@ -833,6 +1386,8 @@ _DOCUMENT_MODELS: dict[str, type[BaseModel]] = {
     "linkage-decision": LinkageDecision,
     "identity-policy": IdentityPolicy,
     "source-of-truth-policy": SourceOfTruthPolicy,
+    "break-taxonomy": BreakTaxonomy,
+    "trade-break": TradeBreak,
 }
 
 

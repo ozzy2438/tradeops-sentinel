@@ -1,18 +1,46 @@
 # packages/contracts
 
 TS-3 publishes the canonical FX contract consumed by later generator,
-persistence, and reconciliation work. It contains no database, transport,
+persistence, and reconciliation work. TS-4 adds the deterministic trade-break
+taxonomy and lifecycle contracts consumed by later inbox/outbox and
+reconciliation work. This package contains no database, transport,
 reconciliation, API, or LLM implementation.
 
 ## Contract layers
 
 - `schemas/*.schema.json` are Draft 2020-12 interchange schemas.
-- `models.py` contains strict Pydantic v2 models for the same TS-3 documents
-  and cross-field validation that JSON Schema cannot express by itself.
-- `examples/` contains valid Spot/Forward observations and canonical records,
-  plus intentionally invalid fixtures for the negative contract tests.
+- `models.py` contains strict Pydantic v2 models for the same TS-3 and TS-4
+  documents and cross-field validation that JSON Schema cannot express by
+  itself.
+- `examples/` contains valid Spot/Forward observations, canonical records, and
+  deterministic trade-break examples, plus intentionally invalid fixtures for
+  the negative contract tests.
 - `tests/test_contracts.py` validates every example against both layers and
   exercises replay, provenance, scope, version, and temporal semantics.
+- `tests/test_break_contracts.py` exercises the exact taxonomy, lifecycle
+  transition matrix, deterministic priority key, and TS-4 semantic invariants.
+
+## TS-4 break contract
+
+The `break-taxonomy` and `trade-break` documents implement
+[ADR-002](../../docs/adr/ADR-002_DETERMINISTIC_TRADE_BREAK_TAXONOMY.md) for
+[issue #4](https://github.com/ozzy2438/tradeops-sentinel/issues/4).
+
+The MVP has exactly eight break families:
+
+1. `MISSING_REQUIRED_SOURCE`
+2. `AMBIGUOUS_OR_UNMATCHED_LINKAGE`
+3. `DUPLICATE_SOURCE_CONFLICT`
+4. `CURRENCY_PAIR_OR_SIDE_MISMATCH`
+5. `ECONOMIC_VALUE_MISMATCH`
+6. `TRADE_OR_VALUE_DATE_MISMATCH`
+7. `LIFECYCLE_STATUS_MISMATCH`
+8. `POST_ACTION_VERIFICATION_FAILURE`
+
+JSON Schema enforces the closed vocabulary, family-specific combinations, and
+permitted lifecycle edges. Pydantic additionally enforces cross-field scope,
+source identity, evidence, priority, timestamp, and resolution invariants.
+Unknown taxonomy and contract versions fail closed.
 
 ## Version and identity rules
 

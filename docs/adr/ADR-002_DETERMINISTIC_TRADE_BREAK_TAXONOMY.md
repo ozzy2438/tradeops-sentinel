@@ -9,7 +9,11 @@ created: 2026-07-31
 
 ## Status
 
-Proposed. Depends on ADR-001 and requires owner approval before implementation.
+Accepted for the TS-4 contract implementation under issue #4. Depends on
+ADR-001. Owner approval is recorded in the TS-4 execution assignment; this
+decision remains limited to the deterministic contract slice and does not
+authorize persistence, reconciliation execution, UI, LLM, model, or cloud
+work.
 
 ## Context
 
@@ -108,6 +112,18 @@ ground truth.
 - `POST_ACTION_VERIFICATION_FAILURE` tests cover unexpected-field changes and
   persistent original breaks.
 - Mutation tests show LLM text and causal labels cannot change rule results.
+
+## TS-4 implementation traceability
+
+- Issue: [#4 — Deterministic Trade-Break Taxonomy and Lifecycle Contracts](https://github.com/ozzy2438/tradeops-sentinel/issues/4)
+- Models: `packages/contracts/models.py` (`BreakTaxonomy`, `TradeBreak`)
+- Schemas: `packages/contracts/schemas/break-taxonomy.schema.json` and
+  `packages/contracts/schemas/trade-break.schema.json`
+- Fixtures: `packages/contracts/examples/valid/` and
+  `packages/contracts/examples/invalid/`, registered in
+  `packages/contracts/examples/manifest.json`
+- Tests: `tests/test_break_contracts.py` and the manifest-driven contract tests
+- Review PR: to be linked after the focused issue #4 PR is published
 
 ## Consequences
 
