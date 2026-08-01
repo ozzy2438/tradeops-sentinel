@@ -3,8 +3,10 @@
 TS-3 publishes the canonical FX contract consumed by later generator,
 persistence, and reconciliation work. TS-4 adds the deterministic trade-break
 taxonomy and lifecycle contracts consumed by later inbox/outbox and
-reconciliation work. This package contains no database, transport,
-reconciliation, API, or LLM implementation.
+reconciliation work. TS-5 adds non-executable evidence and signed-action
+instruction contracts plus deterministic draft hashing. This package contains
+no database, transport, reconciliation, API, LLM, signing, verification,
+dispatch, or executor implementation.
 
 ## Contract layers
 
@@ -19,6 +21,35 @@ reconciliation, API, or LLM implementation.
   exercises replay, provenance, scope, version, and temporal semantics.
 - `tests/test_break_contracts.py` exercises the exact taxonomy, lifecycle
   transition matrix, deterministic priority key, and TS-4 semantic invariants.
+- `tests/test_action_contracts.py` validates the TS-5 instruction/evidence
+  schemas, idempotency binding, CAS/LEASE shape, evidence lineage, and
+  deterministic content-hash behaviour.
+
+## TS-5 action and evidence contracts
+
+`action-instruction.schema.json` and `evidence-item.schema.json` implement the
+non-executable contract surface for [ADR-005](../../docs/adr/ADR-005_SIGNED_ACTION_INSTRUCTION_AND_VERIFICATION_CONTRACT.md)
+and [ADR-012](../../docs/adr/ADR-012_TAMPER_EVIDENT_AUDIT_AND_EVIDENCE_POLICY.md).
+The only permitted action type is the MVP's
+`SET_CONFIRMATION_REFERENCE` update. The instruction binds tenant, portfolio,
+trade, booking, consumed versions, normalised old/new values, target booking
+version, CAS/LEASE control reference, validity window, nonce, idempotency key,
+content hash, revocation lookup, and evidence-manifest reference.
+
+The canonical encoding is version 1 JSON with sorted keys, compact separators,
+UTF-8, and UTC timestamps rendered with `Z`. Derived `content_hash`,
+`idempotency_key`, and future signature metadata are excluded from the locked
+draft bytes. The idempotency key is structurally derived from the ADR-005
+tenant/portfolio/trade/action/booking-version/old-value/new-value/content-hash
+tuple. The package does not create or verify signatures, dispatch instructions,
+execute writes, or claim exactly-once delivery.
+
+Evidence items are scoped by tenant, portfolio, case, and correlation ID;
+versioned and content-addressed; linked to a producer and source reference;
+and explicit about classification, retention, and redaction/derivative state.
+The evidence model uses the bounded ADR-012 claim of tamper-evident application
+evidence and does not claim WORM, legal hold, absolute immutability, or
+non-repudiation.
 
 ## TS-4 break contract
 

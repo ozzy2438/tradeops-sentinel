@@ -24,3 +24,9 @@ drift. Targeted contract tests also assert field-provenance key binding,
 fail-closed settlement-rule and break-rule version handling, family comparison
 field/value-type binding, resolution chronology, and missing-source
 source-kind restrictions.
+
+The TS-5 fixtures add an unsigned, non-executable action instruction draft and
+an ADR-012 evidence item. The action fixture carries explicit consumed
+versions, CAS control, validity window, nonce, idempotency key, and content
+hash. Its tests prove that canonical hashing is repeatable, a locked field
+change moves the hash, and the idempotency composition cannot silently drift.

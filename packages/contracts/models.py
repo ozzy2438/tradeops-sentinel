@@ -1945,14 +1945,21 @@ _DOCUMENT_MODELS: dict[str, type[BaseModel]] = {
 
 
 def validate_contract_document(contract_name: str, document: Mapping[str, Any]) -> BaseModel:
-    """Validate a document with its typed TS-3 contract model.
+    """Validate a document with its typed contract model.
 
     The function is intentionally pure: it parses and validates one document
     and performs no I/O or persistence.
     """
 
-    try:
-        model = _DOCUMENT_MODELS[contract_name]
-    except KeyError as exc:
-        raise ValueError(f"unsupported TS-3 contract: {contract_name}") from exc
+    model = _DOCUMENT_MODELS.get(contract_name)
+    if model is None and contract_name in {"action-instruction", "evidence-item"}:
+        # Import lazily so the TS-3/TS-4 model module remains the dependency
+        # root for the later TS-5 action/evidence contracts.
+        from .action_models import EvidenceItem, SignedActionInstruction
+
+        if contract_name == "action-instruction":
+            return SignedActionInstruction.model_validate(document)
+        return EvidenceItem.model_validate(document)
+    if model is None:
+        raise ValueError(f"unsupported contract: {contract_name}")
     return model.model_validate(document)

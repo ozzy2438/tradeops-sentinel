@@ -1,0 +1,65 @@
+{
+  "instruction_id": "instruction_001",
+  "instruction_schema_version": "1.0.0",
+  "action_type": "SET_CONFIRMATION_REFERENCE",
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_sydney",
+  "case_id": "case_001",
+  "trade_id": "trade_fx_001",
+  "target_booking_id": "booking_001",
+  "canonical_state_version": {
+    "reference_id": "canonical_state_001",
+    "version": 1
+  },
+  "source_observation_versions": [
+    {
+      "observation_id": "confirmation_001",
+      "source_version": "1",
+      "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "reconciliation_version": {
+    "reference_id": "reconciliation_001",
+    "version": 1
+  },
+  "recommendation_version": {
+    "reference_id": "recommendation_001",
+    "version": 1
+  },
+  "policy_version": {
+    "reference_id": "policy_001",
+    "version": 1
+  },
+  "maker_decision_version": {
+    "reference_id": "maker_decision_001",
+    "version": 1
+  },
+  "checker_decision_version": {
+    "reference_id": "checker_decision_001",
+    "version": 1
+  },
+  "target_field_path": "/payload/confirmation_reference",
+  "normalised_expected_old_value": null,
+  "exact_approved_new_value": "CONF-2026-001",
+  "target_booking_version": 3,
+  "final_submit_control": {
+    "control_type": "CAS",
+    "control_reference": "cas_token_001",
+    "lease_expires_at": null
+  },
+  "issued_at": "2026-08-01T07:00:00Z",
+  "not_before": "2026-08-01T07:00:30Z",
+  "expires_at": "2026-08-01T08:00:00Z",
+  "single_use_nonce": "nonce_20260801_000001",
+  "idempotency_key": "idem:1df771a47895209169de062bc064e3ed907ec5b8fceb305a8256ea04fcb53dac",
+  "content_hash": "sha256:6609e51e022b84a93640abbd73cf55c783afd62dabb3436568d1febe7b5623bc",
+  "cancellation_revocation_lookup_reference": {
+    "reference_id": "revocation_lookup_001",
+    "version": 1
+  },
+  "evidence_manifest_reference": {
+    "manifest_id": "evidence_manifest_001",
+    "manifest_version": 1,
+    "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  }
+}
