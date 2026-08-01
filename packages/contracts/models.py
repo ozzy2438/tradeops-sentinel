@@ -465,7 +465,7 @@ def _validate_source_version_set_scope(
     field_provenance: FieldProvenanceMap,
     tenant_id: str,
     portfolio_id: str,
-    source_watermark: datetime | None = None,
+    source_watermark: AwareTimestamp | None = None,
 ) -> None:
     indexed_sources = {item.observation_id: item for item in source_version_set}
     for item in source_version_set:
@@ -593,12 +593,15 @@ class LinkageDecision(ContractModel):
             for candidate in self.candidate_links
             if (candidate.tenant_id, candidate.portfolio_id) != (self.tenant_id, self.portfolio_id)
         ]
-        if self.decision != "CROSS_SCOPE_REJECTED" and candidate_scope_mismatches:
+        if self.decision == "CROSS_SCOPE_REJECTED":
+            if not self.candidate_links or not candidate_scope_mismatches:
+                raise ValueError(
+                    "cross-scope rejection requires at least one cross-scope candidate"
+                )
+        elif candidate_scope_mismatches:
             raise ValueError(
                 "non-cross-scope linkage decisions cannot contain cross-scope candidates"
             )
-        if self.decision == "CROSS_SCOPE_REJECTED" and not candidate_scope_mismatches:
-            raise ValueError("cross-scope rejection requires a cross-scope candidate")
 
         if self.decision == "ACCEPTED":
             if self.chosen_trade_id is None or len(self.candidate_links) != 1:
@@ -610,8 +613,6 @@ class LinkageDecision(ContractModel):
             raise ValueError("unmatched linkage must not contain candidates")
         elif self.decision == "AMBIGUOUS" and len(self.candidate_links) < 2:
             raise ValueError("ambiguous linkage requires multiple candidates")
-        elif self.decision == "CROSS_SCOPE_REJECTED" and not self.candidate_links:
-            raise ValueError("cross-scope rejection requires candidates")
         elif self.chosen_trade_id is not None:
             raise ValueError("non-accepted linkage must not choose a trade")
         return self

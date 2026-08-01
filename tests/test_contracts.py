@@ -237,6 +237,20 @@ def test_operation_status_matrices_reject_contradictory_facts() -> None:
         validate_contract_document("execution-observation", document)
 
 
+def test_cross_scope_rejection_requires_a_scope_mismatch_candidate() -> None:
+    document = _load_json(EXAMPLES / "valid" / "linkage-accepted.json")
+    document["decision"] = "CROSS_SCOPE_REJECTED"
+    document["reason_code"] = "TENANT_OR_PORTFOLIO_SCOPE_MISMATCH"
+    document["chosen_trade_id"] = None
+    document["candidate_links"][0]["portfolio_id"] = "portfolio_sydney"
+
+    validate_contract_document("linkage-decision", document)
+
+    document["candidate_links"] = []
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("linkage-decision", document)
+
+
 def test_source_of_truth_policy_covers_every_canonical_field() -> None:
     document = _load_json(EXAMPLES / "valid" / "source-of-truth-policy.json")
     policy = validate_contract_document("source-of-truth-policy", document)
