@@ -123,7 +123,7 @@ ground truth.
   `packages/contracts/examples/invalid/`, registered in
   `packages/contracts/examples/manifest.json`
 - Tests: `tests/test_break_contracts.py` and the manifest-driven contract tests
-- Review PR: to be linked after the focused issue #4 PR is published
+- Review PR: [#20 — TS-4 deterministic trade-break taxonomy and lifecycle contracts](https://github.com/ozzy2438/tradeops-sentinel/pull/20)
 
 ## Consequences
 
