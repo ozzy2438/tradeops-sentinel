@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "confirmation-observation.schema.json",
+  "title": "FpML-style FX confirmation observation",
+  "description": "The pinned fpml-style-fx-v1 subset used by the MVP; this is not a full FpML implementation.",
+  "allOf": [
+    {
+      "$ref": "common.schema.json#/$defs/observationEnvelope"
+    },
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "observation_kind": {
+          "const": "CONFIRMATION"
+        },
+        "source_system": {
+          "const": "FPML_CONFIRMATION"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/fxPayload"
+            },
+            {
+              "type": "object",
+              "required": [
+                "confirmation_id",
+                "confirmation_reference",
+                "confirmation_status",
+                "confirmation_time",
+                "fpml_profile"
+              ],
+              "properties": {
+                "confirmation_id": {
+                  "$ref": "common.schema.json#/$defs/identifier"
+                },
+                "confirmation_reference": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "confirmation_status": {
+                  "enum": ["PENDING", "AFFIRMED", "REJECTED", "AMENDED", "CANCELLED"]
+                },
+                "confirmation_time": {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                },
+                "fpml_profile": {
+                  "const": "fpml-style-fx-v1"
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}

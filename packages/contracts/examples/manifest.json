@@ -1,0 +1,19 @@
+{
+  "valid": {
+    "execution-spot.json": "execution-observation",
+    "trade-capture-forward.json": "trade-capture-observation",
+    "confirmation-spot.json": "confirmation-observation",
+    "booking-forward.json": "booking-observation",
+    "canonical-trade-spot.json": "canonical-trade",
+    "canonical-trade-state-spot.json": "canonical-trade-state",
+    "linkage-accepted.json": "linkage-decision",
+    "identity-policy.json": "identity-policy",
+    "source-of-truth-policy.json": "source-of-truth-policy"
+  },
+  "invalid": {
+    "execution-unsupported-schema.json": "execution-observation",
+    "execution-event-after-ingest.json": "execution-observation",
+    "execution-scale-mismatch.json": "execution-observation",
+    "linkage-cross-portfolio-accepted.json": "linkage-decision"
+  }
+}

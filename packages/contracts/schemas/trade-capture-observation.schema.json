@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "trade-capture-observation.schema.json",
+  "title": "FIX-style trade-capture observation",
+  "description": "One trade-capture event/version. It has a separate identity and lateness history from an execution observation.",
+  "allOf": [
+    {
+      "$ref": "common.schema.json#/$defs/observationEnvelope"
+    },
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "observation_kind": {
+          "const": "TRADE_CAPTURE"
+        },
+        "source_system": {
+          "const": "FIX_TRADE_CAPTURE"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/fxPayload"
+            },
+            {
+              "type": "object",
+              "required": [
+                "capture_id",
+                "capture_type",
+                "capture_status",
+                "capture_time",
+                "execution_reference"
+              ],
+              "properties": {
+                "capture_id": {
+                  "$ref": "common.schema.json#/$defs/identifier"
+                },
+                "capture_type": {
+                  "enum": ["NEW", "AMEND", "CANCEL"]
+                },
+                "capture_status": {
+                  "enum": ["CAPTURED", "AMENDED", "CANCELLED"]
+                },
+                "capture_time": {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                },
+                "execution_reference": {
+                  "$ref": "common.schema.json#/$defs/identifier"
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}

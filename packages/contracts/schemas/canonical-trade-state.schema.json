@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "canonical-trade-state.schema.json",
+  "title": "Immutable versioned canonical FX trade state",
+  "description": "A canonical projection at one source watermark. Reconciliation owns its separate reconciliation-run version; it must not be folded into canonical_state_version.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "trade_id",
+    "entity_version",
+    "canonical_state_version",
+    "tenant_id",
+    "portfolio_id",
+    "correlation_id",
+    "content_hash",
+    "as_of_time",
+    "source_watermark",
+    "source_version_set",
+    "actor",
+    "state",
+    "field_provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "common.schema.json#/$defs/schemaVersion"
+    },
+    "trade_id": {
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "entity_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "canonical_state_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "tenant_id": {
+      "$ref": "common.schema.json#/$defs/tenantId"
+    },
+    "portfolio_id": {
+      "$ref": "common.schema.json#/$defs/portfolioId"
+    },
+    "correlation_id": {
+      "$ref": "common.schema.json#/$defs/correlationId"
+    },
+    "content_hash": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "as_of_time": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "source_watermark": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "source_version_set": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "common.schema.json#/$defs/sourceVersionSetItem"
+      }
+    },
+    "actor": {
+      "$ref": "common.schema.json#/$defs/actor"
+    },
+    "state": {
+      "$ref": "canonical-fields.schema.json#/$defs/canonicalFields"
+    },
+    "field_provenance": {
+      "$ref": "canonical-fields.schema.json#/$defs/fieldProvenanceMap"
+    }
+  },
+  "additionalProperties": false
+}

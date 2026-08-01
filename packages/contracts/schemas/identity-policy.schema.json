@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "identity-policy.schema.json",
+  "title": "Source observation identity, replay and conflict policy",
+  "description": "Machine-readable decision table for source identity, transport replay, source-version supersession and fail-closed linkage outcomes.",
+  "type": "object",
+  "required": ["policy_version", "source_identity_fields", "delivery_identity_fields", "outcomes"],
+  "properties": {
+    "policy_version": {
+      "$ref": "common.schema.json#/$defs/semanticVersion"
+    },
+    "source_identity_fields": {
+      "const": [
+        "tenant_id",
+        "portfolio_id",
+        "source_system",
+        "observation_kind",
+        "source_business_key",
+        "source_version"
+      ]
+    },
+    "delivery_identity_fields": {
+      "const": ["source_system", "source_event_id"]
+    },
+    "content_hash_field": {
+      "const": "content_hash"
+    },
+    "outcomes": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["precedence", "case_id", "condition", "outcome", "storage_effect", "canonical_effect"],
+        "properties": {
+          "precedence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "case_id": {
+            "$ref": "common.schema.json#/$defs/identifier"
+          },
+          "condition": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["description"],
+            "properties": {
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "same_delivery_identity": {
+                "type": "boolean"
+              },
+              "same_source_identity": {
+                "type": "boolean"
+              },
+              "same_content_hash": {
+                "type": "boolean"
+              },
+              "source_version_relation": {
+                "enum": ["SAME", "GREATER", "LOWER", "NOT_APPLICABLE"]
+              },
+              "scope_match": {
+                "type": "boolean"
+              },
+              "schema_version_supported": {
+                "type": "boolean"
+              }
+            }
+          },
+          "outcome": {
+            "enum": [
+              "NEW_OBSERVATION",
+              "IDEMPOTENT_REPLAY",
+              "DUPLICATE_SOURCE_CONFLICT",
+              "NEW_SOURCE_VERSION",
+              "LATE_SOURCE_VERSION_RECORDED",
+              "REJECT_UNSUPPORTED_SCHEMA_VERSION",
+              "REJECT_CROSS_PORTFOLIO_LINKAGE",
+              "LINKAGE_REVIEW_REQUIRED"
+            ]
+          },
+          "storage_effect": {
+            "enum": [
+              "APPEND",
+              "APPEND_DUPLICATE_EVIDENCE",
+              "APPEND_CONFLICT_EVIDENCE",
+              "APPEND_AND_SUPERSEDE_ACTIVE_VERSION",
+              "APPEND_LATE_NON_ACTIVE_VERSION",
+              "REJECT"
+            ]
+          },
+          "canonical_effect": {
+            "enum": [
+              "CREATE_PROJECTION_CANDIDATE",
+              "NO_CHANGE",
+              "RECONCILE_NEW_SOURCE_SET",
+              "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS",
+              "REQUIRE_LINKAGE_REVIEW"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

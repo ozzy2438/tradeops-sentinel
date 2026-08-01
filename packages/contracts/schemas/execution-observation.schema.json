@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution-observation.schema.json",
+  "title": "FIX-style execution observation",
+  "description": "One execution event/version. It is distinct from trade capture, confirmation and booking observations.",
+  "allOf": [
+    {
+      "$ref": "common.schema.json#/$defs/observationEnvelope"
+    },
+    {
+      "type": "object",
+      "required": ["payload"],
+      "properties": {
+        "observation_kind": {
+          "const": "EXECUTION"
+        },
+        "source_system": {
+          "const": "FIX_EXECUTION"
+        },
+        "payload": {
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/fxPayload"
+            },
+            {
+              "type": "object",
+              "required": [
+                "execution_id",
+                "execution_type",
+                "execution_status",
+                "execution_time"
+              ],
+              "properties": {
+                "execution_id": {
+                  "$ref": "common.schema.json#/$defs/identifier"
+                },
+                "execution_type": {
+                  "enum": ["NEW", "AMEND", "CANCEL"]
+                },
+                "execution_status": {
+                  "enum": ["EXECUTED", "AMENDED", "CANCELLED"]
+                },
+                "execution_time": {
+                  "$ref": "common.schema.json#/$defs/timestamp"
+                },
+                "order_id": {
+                  "$ref": "common.schema.json#/$defs/identifier"
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
