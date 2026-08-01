@@ -138,6 +138,35 @@ def test_evidence_revision_and_redacted_derivative_links_fail_closed() -> None:
         validate_contract_document("evidence-item", derivative)
 
 
+def test_evidence_and_artifact_identity_versions_have_distinct_lineage() -> None:
+    document = _load("evidence-item.json")
+    replacement = deepcopy(document)
+    replacement["evidence_id"] = "evidence_002"
+    replacement["evidence_version"] = 2
+    replacement["supersedes_evidence_id"] = document["evidence_id"]
+    replacement["artifact_version"] = 2
+    replacement["content_hash"] = (
+        "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    )
+
+    _validate_schema("evidence-item", document)
+    _validate_schema("evidence-item", replacement)
+    validate_contract_document("evidence-item", document)
+    validate_contract_document("evidence-item", replacement)
+
+    shared_artifact = deepcopy(document)
+    shared_artifact["evidence_id"] = "evidence_003"
+    _validate_schema("evidence-item", shared_artifact)
+    validate_contract_document("evidence-item", shared_artifact)
+
+    conflated_namespaces = deepcopy(document)
+    conflated_namespaces["evidence_id"] = conflated_namespaces["artifact_id"]
+    with pytest.raises(ValidationError):
+        _validate_schema("evidence-item", conflated_namespaces)
+    with pytest.raises(PydanticValidationError):
+        validate_contract_document("evidence-item", conflated_namespaces)
+
+
 def test_evidence_temporal_and_self_link_invariants_are_semantic_checks() -> None:
     late_created = deepcopy(_load("evidence-item.json"))
     late_created["created_at"] = "2026-08-01T06:59:59Z"

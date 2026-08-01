@@ -26,11 +26,15 @@
     "created_at"
   ],
   "properties": {
-    "evidence_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "evidence_id": {"$ref": "#/$defs/evidenceId"},
     "evidence_schema_version": {"const": "1.0.0"},
     "evidence_version": {"type": "integer", "minimum": 1},
-    "artifact_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "artifact_version": {"type": "integer", "minimum": 1},
+    "artifact_id": {"$ref": "#/$defs/artifactId"},
+    "artifact_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Immutable artifact version under the stable artifact_id."
+    },
     "tenant_id": {"$ref": "common.schema.json#/$defs/tenantId"},
     "portfolio_id": {"$ref": "common.schema.json#/$defs/portfolioId"},
     "case_id": {"$ref": "common.schema.json#/$defs/identifier"},
@@ -90,13 +94,13 @@
     "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
     "supersedes_evidence_id": {
       "anyOf": [
-        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"$ref": "#/$defs/evidenceId"},
         {"type": "null"}
       ]
     },
     "derivative_of_evidence_id": {
       "anyOf": [
-        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"$ref": "#/$defs/evidenceId"},
         {"type": "null"}
       ]
     }
@@ -118,7 +122,7 @@
       "then": {
         "properties": {
           "supersedes_evidence_id": {
-            "$ref": "common.schema.json#/$defs/identifier"
+            "$ref": "#/$defs/evidenceId"
           }
         },
         "required": ["supersedes_evidence_id"]
@@ -132,7 +136,7 @@
       "then": {
         "properties": {
           "derivative_of_evidence_id": {
-            "$ref": "common.schema.json#/$defs/identifier"
+            "$ref": "#/$defs/evidenceId"
           }
         },
         "required": ["derivative_of_evidence_id"]
@@ -173,6 +177,20 @@
   ],
   "additionalProperties": false,
   "$defs": {
+    "evidenceId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^evidence_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Immutable evidence-record identity."
+    },
+    "artifactId": {
+      "allOf": [
+        {"$ref": "common.schema.json#/$defs/identifier"},
+        {"pattern": "^artifact_[a-z0-9][a-z0-9_-]*$"}
+      ],
+      "description": "Stable logical identity for a stored artifact."
+    },
     "evidenceReference": {
       "type": "object",
       "required": ["reference_id", "reference_version"],

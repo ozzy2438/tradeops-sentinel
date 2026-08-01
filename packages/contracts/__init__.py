@@ -1,6 +1,8 @@
 """Typed, machine-readable contracts for TradeOps Sentinel."""
 
 from .action_models import (
+    ArtifactId,
+    EvidenceId,
     EvidenceItem,
     EvidenceManifestReference,
     EvidenceReference,
@@ -30,6 +32,8 @@ __all__ = [
     "CanonicalTrade",
     "CanonicalTradeState",
     "ConfirmationObservation",
+    "ArtifactId",
+    "EvidenceId",
     "EvidenceItem",
     "EvidenceManifestReference",
     "EvidenceReference",

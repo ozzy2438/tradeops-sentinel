@@ -47,6 +47,14 @@ execute writes, or claim exactly-once delivery.
 Evidence items are scoped by tenant, portfolio, case, and correlation ID;
 versioned and content-addressed; linked to a producer and source reference;
 and explicit about classification, retention, and redaction/derivative state.
+The identity pairs are intentionally separate: `evidence_id` plus
+`evidence_version` identify an immutable evidence-record lineage, while
+`artifact_id` plus `artifact_version` identify a separately stored immutable
+artifact version. A revised evidence record gets a new evidence ID and an
+explicit predecessor link. Multiple evidence records may reference the same
+artifact pair within the same tenant/portfolio/case scope; persistence should
+use `evidence_id` as the evidence-record key and
+`(artifact_id, artifact_version)` as the artifact key/foreign-key target.
 The evidence model uses the bounded ADR-012 claim of tamper-evident application
 evidence and does not claim WORM, legal hold, absolute immutability, or
 non-repudiation.

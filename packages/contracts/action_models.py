@@ -45,6 +45,14 @@ EvidenceRedactionStatus: TypeAlias = Literal[
     "REDACTION_FAILED",
 ]
 EvidenceRetentionClass: TypeAlias = Literal["STANDARD", "RESTRICTED", "SHORT_LIVED"]
+EvidenceId = Annotated[
+    str,
+    StringConstraints(pattern=r"^evidence_[a-z0-9][a-z0-9_-]*$", min_length=3, max_length=128),
+]
+ArtifactId = Annotated[
+    str,
+    StringConstraints(pattern=r"^artifact_[a-z0-9][a-z0-9_-]*$", min_length=3, max_length=128),
+]
 EvidenceKind: TypeAlias = Literal[
     "SOURCE_OBSERVATION_HASH",
     "NORMALISED_OBSERVATION",
@@ -317,13 +325,28 @@ class EvidenceReference(ContractModel):
 
 
 class EvidenceItem(ContractModel):
-    """Versioned, scoped evidence artefact reference from ADR-012."""
+    """Versioned, scoped evidence record referencing an ADR-012 artefact.
 
-    evidence_id: Identifier
+    ``evidence_id`` identifies the immutable evidence-record lineage. A
+    revised record receives a new evidence ID and points to its predecessor
+    through ``supersedes_evidence_id``; ``evidence_id`` is therefore the
+    natural evidence-record key.
+
+    ``artifact_id`` is a separate stable logical identity for the stored
+    artefact. ``artifact_version`` identifies an immutable version under that
+    identity, so the artifact persistence key is the pair
+    ``(artifact_id, artifact_version)``. Multiple evidence records may refer
+    to the same artifact pair within the same tenant/portfolio/case scope.
+    """
+
+    evidence_id: EvidenceId
     evidence_schema_version: SchemaVersion
     evidence_version: int = Field(ge=1)
-    artifact_id: Identifier
-    artifact_version: int = Field(ge=1)
+    artifact_id: ArtifactId
+    artifact_version: int = Field(
+        ge=1,
+        description="Immutable artifact version under the stable artifact_id.",
+    )
     tenant_id: TenantId
     portfolio_id: PortfolioId
     case_id: Identifier
@@ -338,8 +361,8 @@ class EvidenceItem(ContractModel):
     retention_class: EvidenceRetentionClass
     captured_at: AwareTimestamp
     created_at: AwareTimestamp
-    supersedes_evidence_id: Identifier | None = None
-    derivative_of_evidence_id: Identifier | None = None
+    supersedes_evidence_id: EvidenceId | None = None
+    derivative_of_evidence_id: EvidenceId | None = None
 
     @model_validator(mode="after")
     def validate_evidence_invariants(self) -> EvidenceItem:
@@ -371,6 +394,8 @@ class EvidenceItem(ContractModel):
 
 __all__ = [
     "ActionType",
+    "ArtifactId",
+    "EvidenceId",
     "EvidenceItem",
     "EvidenceKind",
     "EvidenceManifestReference",

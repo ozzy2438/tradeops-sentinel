@@ -30,3 +30,7 @@ an ADR-012 evidence item. The action fixture carries explicit consumed
 versions, CAS control, validity window, nonce, idempotency key, and content
 hash. Its tests prove that canonical hashing is repeatable, a locked field
 change moves the hash, and the idempotency composition cannot silently drift.
+
+Evidence tests also pin the identity boundary: evidence-record lineage uses a
+new evidence ID plus `supersedes_evidence_id`, while a stable artifact ID may
+be referenced by more than one evidence record at a specific artifact version.
