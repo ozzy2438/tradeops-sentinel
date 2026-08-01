@@ -12,7 +12,11 @@ description = "Known false positives — reviewed, not real secrets"
 # text copied verbatim from the approved MVP Release Charter and ADRs, not
 # credentials. Reviewed 2026-07-31 (Epic E1 / TS-1) — see the gitleaks job
 # run on the initial commit for the specific match this rule addresses.
+# The TS-4 duplicate-source fixtures contain deliberately repeated synthetic
+# identity values to exercise same-key/version conflict binding. They are not
+# credentials; the allowlist is limited to those fixture filenames.
 paths = [
   '''docs/CHARTER_REFERENCE\.md''',
   '''docs/adr/.*\.md''',
+  '''packages/contracts/examples/(valid|invalid)/trade-break-duplicate-.*\.json''',
 ]
