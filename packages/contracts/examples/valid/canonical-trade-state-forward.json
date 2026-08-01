@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0.0",
+  "trade_id": "trade_forward_001",
+  "entity_version": 1,
+  "canonical_state_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_london",
+  "correlation_id": "corr_ts3_forward_001",
+  "content_hash": "sha256:abababababababababababababababababababababababababababababababab",
+  "as_of_time": "2026-07-31T09:31:05Z",
+  "source_watermark": "2026-07-31T09:31:04Z",
+  "source_version_set": [
+    {
+      "observation_id": "obs_trade_capture_forward_001",
+      "observation_kind": "TRADE_CAPTURE",
+      "source_system": "FIX_TRADE_CAPTURE",
+      "source_tenant_id": "tenant_demo",
+      "source_portfolio_id": "portfolio_london",
+      "source_version": "1",
+      "content_hash": "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    }
+  ],
+  "actor": {"identity_type": "SYSTEM", "actor_id": "canonical_projector"},
+  "state": {
+    "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
+    "base_currency": "EUR",
+    "terms_currency": "USD",
+    "side": "BUY_BASE",
+    "base_amount": {"currency": "EUR", "value": "1000000.00", "scale": 2},
+    "terms_amount": {"currency": "USD", "value": "1100000.00", "scale": 2},
+    "quoted_rate": {"value": "1.1000", "scale": 4, "orientation": "TERMS_CURRENCY_PER_BASE_CURRENCY"},
+    "trade_date": "2026-07-31",
+    "value_date": "2026-09-01",
+    "lifecycle_status": "CAPTURED",
+    "counterparty_id": "cp_acme",
+    "book_id": "book_london"
+  },
+  "field_provenance": {
+    "product_type": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/product_type", "normalisation_rule_id": "norm_product", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "settlement_rule_version": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/settlement_rule_version", "normalisation_rule_id": "norm_version", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "base_currency": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/base_currency", "normalisation_rule_id": "norm_currency", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "terms_currency": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/terms_currency", "normalisation_rule_id": "norm_currency", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "side": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/side", "normalisation_rule_id": "norm_side", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "base_amount": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/base_amount", "normalisation_rule_id": "norm_decimal", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "terms_amount": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/terms_amount", "normalisation_rule_id": "norm_decimal", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "quoted_rate": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/quoted_rate", "normalisation_rule_id": "norm_rate", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "trade_date": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/trade_date", "normalisation_rule_id": "norm_date", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "value_date": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/value_date", "normalisation_rule_id": "norm_date", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "lifecycle_status": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/lifecycle_status", "normalisation_rule_id": "norm_lifecycle", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "counterparty_id": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/counterparty_id", "normalisation_rule_id": "norm_identifier", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    },
+    "book_id": {
+      "source_type": "TRADE_CAPTURE", "source_system": "FIX_TRADE_CAPTURE", "source_tenant_id": "tenant_demo", "source_portfolio_id": "portfolio_london", "source_observation_id": "obs_trade_capture_forward_001", "source_observation_entity_version": 1, "source_version": "1", "field_path": "/payload/book_id", "normalisation_rule_id": "norm_identifier", "normalisation_rule_version": "1.0.0", "resolution_rule_version": "1.0.0", "observed_at": "2026-07-31T09:30:00Z", "effective_at": "2026-07-31T09:30:00Z", "ingested_at": "2026-07-31T09:30:02Z", "conflict_status": "SELECTED"
+    }
+  }
+}

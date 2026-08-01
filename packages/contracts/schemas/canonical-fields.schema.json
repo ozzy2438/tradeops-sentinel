@@ -7,6 +7,8 @@
       "type": "object",
       "required": [
         "product_type",
+        "settlement_rule_version",
+        "settlement_rule_version",
         "base_currency",
         "terms_currency",
         "side",
@@ -22,6 +24,9 @@
       "properties": {
         "product_type": {
           "$ref": "common.schema.json#/$defs/productType"
+        },
+        "settlement_rule_version": {
+          "$ref": "common.schema.json#/$defs/semanticVersion"
         },
         "base_currency": {
           "$ref": "common.schema.json#/$defs/currency"
@@ -80,6 +85,9 @@
       ],
       "properties": {
         "product_type": {
+          "$ref": "common.schema.json#/$defs/fieldProvenance"
+        },
+        "settlement_rule_version": {
           "$ref": "common.schema.json#/$defs/fieldProvenance"
         },
         "base_currency": {

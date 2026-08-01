@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "decision_id": "linkage_unmatched_candidate",
+  "entity_version": 1,
+  "tenant_id": "tenant_demo",
+  "portfolio_id": "portfolio_london",
+  "correlation_id": "corr_unmatched_candidate",
+  "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "created_at": "2026-07-31T09:30:05Z",
+  "actor": {"identity_type": "SYSTEM", "actor_id": "linkage_resolver"},
+  "source_observation_id": "obs_execution_spot_001",
+  "deterministic_rule_version": "1.0.0",
+  "decision": "UNMATCHED",
+  "candidate_links": [
+    {
+      "trade_id": "trade_spot_001",
+      "tenant_id": "tenant_demo",
+      "portfolio_id": "portfolio_london",
+      "match_key": "trade_spot_001",
+      "match_rule_version": "1.0.0",
+      "evidence_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  ],
+  "chosen_trade_id": null,
+  "reason_code": "NO_ELIGIBLE_CANDIDATE"
+}

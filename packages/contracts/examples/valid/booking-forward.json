@@ -22,6 +22,7 @@
   },
   "payload": {
     "product_type": "FX_FORWARD",
+    "settlement_rule_version": "1.0.0",
     "source_trade_id": "trade_forward_001",
     "base_currency": "USD",
     "terms_currency": "JPY",

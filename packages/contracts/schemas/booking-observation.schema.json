@@ -61,6 +61,18 @@
                   "$ref": "common.schema.json#/$defs/sha256"
                 }
               }
+            },
+            {
+              "if": {"properties": {"booking_status": {"const": "BOOKED"}}},
+              "then": {"properties": {"lifecycle_status": {"const": "BOOKED"}}}
+            },
+            {
+              "if": {"properties": {"booking_status": {"const": "AMENDED"}}},
+              "then": {"properties": {"lifecycle_status": {"const": "AMENDED"}}}
+            },
+            {
+              "if": {"properties": {"booking_status": {"const": "CANCELLED"}}},
+              "then": {"properties": {"lifecycle_status": {"const": "CANCELLED"}}}
             }
           ],
           "unevaluatedProperties": false

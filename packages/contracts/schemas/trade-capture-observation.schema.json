@@ -48,6 +48,22 @@
                   "$ref": "common.schema.json#/$defs/identifier"
                 }
               }
+            },
+            {
+              "allOf": [
+                {
+                  "if": {"properties": {"capture_type": {"const": "NEW"}}},
+                  "then": {"properties": {"capture_status": {"const": "CAPTURED"}, "lifecycle_status": {"const": "CAPTURED"}}}
+                },
+                {
+                  "if": {"properties": {"capture_type": {"const": "AMEND"}}},
+                  "then": {"properties": {"capture_status": {"const": "AMENDED"}, "lifecycle_status": {"const": "AMENDED"}}}
+                },
+                {
+                  "if": {"properties": {"capture_type": {"const": "CANCEL"}}},
+                  "then": {"properties": {"capture_status": {"const": "CANCELLED"}, "lifecycle_status": {"const": "CANCELLED"}}}
+                }
+              ]
             }
           ],
           "unevaluatedProperties": false

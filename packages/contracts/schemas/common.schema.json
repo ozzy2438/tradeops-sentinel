@@ -147,6 +147,7 @@
       "type": "object",
       "required": [
         "product_type",
+        "settlement_rule_version",
         "source_trade_id",
         "base_currency",
         "terms_currency",
@@ -163,6 +164,9 @@
       "properties": {
         "product_type": {
           "$ref": "#/$defs/productType"
+        },
+        "settlement_rule_version": {
+          "$ref": "#/$defs/semanticVersion"
         },
         "source_trade_id": {
           "$ref": "#/$defs/identifier"
@@ -239,7 +243,7 @@
         },
         "entity_version": {
           "type": "integer",
-          "minimum": 1
+          "const": 1
         },
         "tenant_id": {
           "$ref": "#/$defs/tenantId"
@@ -307,6 +311,9 @@
       "additionalProperties": false,
       "required": [
         "source_type",
+        "source_system",
+        "source_tenant_id",
+        "source_portfolio_id",
         "source_observation_id",
         "source_observation_entity_version",
         "source_version",
@@ -322,6 +329,15 @@
       "properties": {
         "source_type": {
           "$ref": "#/$defs/observationKind"
+        },
+        "source_system": {
+          "$ref": "#/$defs/sourceSystem"
+        },
+        "source_tenant_id": {
+          "$ref": "#/$defs/tenantId"
+        },
+        "source_portfolio_id": {
+          "$ref": "#/$defs/portfolioId"
         },
         "source_observation_id": {
           "$ref": "#/$defs/identifier"
@@ -371,6 +387,9 @@
       "required": [
         "observation_id",
         "observation_kind",
+        "source_system",
+        "source_tenant_id",
+        "source_portfolio_id",
         "source_version",
         "content_hash"
       ],
@@ -380,6 +399,15 @@
         },
         "observation_kind": {
           "$ref": "#/$defs/observationKind"
+        },
+        "source_system": {
+          "$ref": "#/$defs/sourceSystem"
+        },
+        "source_tenant_id": {
+          "$ref": "#/$defs/tenantId"
+        },
+        "source_portfolio_id": {
+          "$ref": "#/$defs/portfolioId"
         },
         "source_version": {
           "$ref": "#/$defs/sourceVersion"
