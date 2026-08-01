@@ -22,6 +22,7 @@
   },
   "payload": {
     "product_type": "FX_SPOT",
+    "settlement_rule_version": "1.0.0",
     "source_trade_id": "trade_spot_001",
     "base_currency": "EUR",
     "terms_currency": "USD",

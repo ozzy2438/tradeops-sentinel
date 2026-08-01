@@ -5,9 +5,9 @@
     "portfolio_id",
     "source_system",
     "observation_kind",
-    "source_business_key",
-    "source_version"
+    "source_business_key"
   ],
+  "source_version_field": "source_version",
   "delivery_identity_fields": ["source_system", "source_event_id"],
   "content_hash_field": "content_hash",
   "outcomes": [
@@ -70,7 +70,7 @@
     {
       "precedence": 8,
       "case_id": "new_observation",
-      "condition": {"description": "no delivery or source identity match exists"},
+      "condition": {"description": "no delivery or source identity match exists", "same_delivery_identity": false, "same_source_identity": false},
       "outcome": "NEW_OBSERVATION",
       "storage_effect": "APPEND",
       "canonical_effect": "CREATE_PROJECTION_CANDIDATE"

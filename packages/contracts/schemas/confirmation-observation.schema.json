@@ -50,6 +50,30 @@
                   "const": "fpml-style-fx-v1"
                 }
               }
+            },
+            {
+              "allOf": [
+                {
+                  "if": {"properties": {"confirmation_status": {"const": "PENDING"}}},
+                  "then": {"properties": {"lifecycle_status": {"const": "CAPTURED"}}}
+                },
+                {
+                  "if": {"properties": {"confirmation_status": {"const": "AFFIRMED"}}},
+                  "then": {"properties": {"lifecycle_status": {"const": "CONFIRMED"}}}
+                },
+                {
+                  "if": {"properties": {"confirmation_status": {"const": "REJECTED"}}},
+                  "then": {"properties": {"lifecycle_status": {"const": "CANCELLED"}}}
+                },
+                {
+                  "if": {"properties": {"confirmation_status": {"const": "AMENDED"}}},
+                  "then": {"properties": {"lifecycle_status": {"const": "AMENDED"}}}
+                },
+                {
+                  "if": {"properties": {"confirmation_status": {"const": "CANCELLED"}}},
+                  "then": {"properties": {"lifecycle_status": {"const": "CANCELLED"}}}
+                }
+              ]
             }
           ],
           "unevaluatedProperties": false

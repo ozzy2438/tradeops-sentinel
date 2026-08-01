@@ -4,7 +4,7 @@
   "title": "Source observation identity, replay and conflict policy",
   "description": "Machine-readable decision table for source identity, transport replay, source-version supersession and fail-closed linkage outcomes.",
   "type": "object",
-  "required": ["policy_version", "source_identity_fields", "delivery_identity_fields", "outcomes"],
+  "required": ["policy_version", "source_identity_fields", "source_version_field", "delivery_identity_fields", "outcomes"],
   "properties": {
     "policy_version": {
       "$ref": "common.schema.json#/$defs/semanticVersion"
@@ -15,9 +15,11 @@
         "portfolio_id",
         "source_system",
         "observation_kind",
-        "source_business_key",
-        "source_version"
+        "source_business_key"
       ]
+    },
+    "source_version_field": {
+      "const": "source_version"
     },
     "delivery_identity_fields": {
       "const": ["source_system", "source_event_id"]
@@ -100,7 +102,142 @@
               "REQUIRE_LINKAGE_REVIEW"
             ]
           }
-        }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "outcome": {"const": "NEW_OBSERVATION"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "same_delivery_identity", "same_source_identity"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "same_delivery_identity": {"const": false},
+                  "same_source_identity": {"const": false}
+                }
+              },
+              "storage_effect": {"const": "APPEND"},
+              "canonical_effect": {"const": "CREATE_PROJECTION_CANDIDATE"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "IDEMPOTENT_REPLAY"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "same_delivery_identity", "same_content_hash"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "same_delivery_identity": {"const": true},
+                  "same_content_hash": {"const": true}
+                }
+              },
+              "storage_effect": {"const": "APPEND_DUPLICATE_EVIDENCE"},
+              "canonical_effect": {"const": "NO_CHANGE"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "DUPLICATE_SOURCE_CONFLICT"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "same_delivery_identity", "same_content_hash"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "same_delivery_identity": {"const": true},
+                  "same_content_hash": {"const": false}
+                }
+              },
+              "storage_effect": {"const": "APPEND_CONFLICT_EVIDENCE"},
+              "canonical_effect": {"const": "REQUIRE_LINKAGE_REVIEW"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "NEW_SOURCE_VERSION"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "same_source_identity", "source_version_relation"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "same_source_identity": {"const": true},
+                  "source_version_relation": {"const": "GREATER"}
+                }
+              },
+              "storage_effect": {"const": "APPEND_AND_SUPERSEDE_ACTIVE_VERSION"},
+              "canonical_effect": {"const": "RECONCILE_NEW_SOURCE_SET"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "LATE_SOURCE_VERSION_RECORDED"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "same_source_identity", "source_version_relation"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "same_source_identity": {"const": true},
+                  "source_version_relation": {"const": "LOWER"}
+                }
+              },
+              "storage_effect": {"const": "APPEND_LATE_NON_ACTIVE_VERSION"},
+              "canonical_effect": {"const": "NO_CHANGE"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "REJECT_UNSUPPORTED_SCHEMA_VERSION"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "schema_version_supported"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "schema_version_supported": {"const": false}
+                }
+              },
+              "storage_effect": {"const": "REJECT"},
+              "canonical_effect": {"const": "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "REJECT_CROSS_PORTFOLIO_LINKAGE"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "scope_match"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "scope_match": {"const": false}
+                }
+              },
+              "storage_effect": {"const": "REJECT"},
+              "canonical_effect": {"const": "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS"}
+            }
+          },
+          {
+            "properties": {
+              "outcome": {"const": "LINKAGE_REVIEW_REQUIRED"},
+              "condition": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["description", "scope_match"],
+                "properties": {
+                  "description": {"type": "string", "minLength": 1},
+                  "scope_match": {"const": true}
+                }
+              },
+              "storage_effect": {"const": "APPEND"},
+              "canonical_effect": {"const": "REQUIRE_LINKAGE_REVIEW"}
+            }
+          }
+        ]
       }
     }
   },

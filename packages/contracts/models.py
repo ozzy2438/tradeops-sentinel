@@ -12,7 +12,14 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Annotated, Any, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 SchemaVersion: TypeAlias = Literal["1.0.0"]
 SourceSystem: TypeAlias = Literal[
@@ -69,6 +76,7 @@ SemanticVersion = Annotated[
     str,
     StringConstraints(pattern=r"^[0-9]+\.[0-9]+\.[0-9]+$"),
 ]
+SettlementRuleVersion: TypeAlias = Literal["1.0.0"]
 SourceVersion = Annotated[
     str,
     StringConstraints(pattern=r"^[1-9][0-9]{0,18}$"),
@@ -78,6 +86,42 @@ FieldPath = Annotated[
     str,
     StringConstraints(pattern=r"^/payload/[a-z][a-z0-9_/-]*$"),
 ]
+
+
+def _require_timezone(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("timestamp must include a timezone offset")
+    return value
+
+
+AwareTimestamp = Annotated[datetime, AfterValidator(_require_timezone)]
+
+
+_SOURCE_SYSTEM_BY_OBSERVATION_KIND: dict[str, str] = {
+    "EXECUTION": "FIX_EXECUTION",
+    "TRADE_CAPTURE": "FIX_TRADE_CAPTURE",
+    "CONFIRMATION": "FPML_CONFIRMATION",
+    "BOOKING": "MOCK_LEGACY_BOOKING",
+}
+
+_CANONICAL_FIELD_NAMES = (
+    "product_type",
+    "settlement_rule_version",
+    "base_currency",
+    "terms_currency",
+    "side",
+    "base_amount",
+    "terms_amount",
+    "quoted_rate",
+    "trade_date",
+    "value_date",
+    "lifecycle_status",
+    "counterparty_id",
+    "book_id",
+)
+_SOURCE_OF_TRUTH_FIELD_PATHS = tuple(
+    f"/payload/{field_name}" for field_name in _CANONICAL_FIELD_NAMES
+) + ("/payload/confirmation_status", "/payload/booking_status", "/linkage/trade_id")
 
 
 class ContractModel(BaseModel):
@@ -119,6 +163,7 @@ class Actor(ContractModel):
 
 class FxPayload(ContractModel):
     product_type: ProductType
+    settlement_rule_version: SettlementRuleVersion
     source_trade_id: Identifier
     base_currency: Currency
     terms_currency: Currency
@@ -140,8 +185,11 @@ class FxPayload(ContractModel):
             raise ValueError("base_amount.currency must equal base_currency")
         if self.terms_amount.currency != self.terms_currency:
             raise ValueError("terms_amount.currency must equal terms_currency")
-        if self.value_date < self.trade_date:
-            raise ValueError("value_date must not precede trade_date")
+        _validate_settlement_window(
+            self.product_type,
+            self.trade_date,
+            self.value_date,
+        )
         return self
 
 
@@ -158,9 +206,9 @@ class ObservationEnvelope(ContractModel):
     source_business_key: Identifier
     source_version: SourceVersion
     content_hash: Sha256
-    event_time: datetime
-    effective_time: datetime
-    ingest_time: datetime
+    event_time: AwareTimestamp
+    effective_time: AwareTimestamp
+    ingest_time: AwareTimestamp
     source_sequence: int = Field(ge=0)
     lineage_group_id: Identifier
     actor: Actor
@@ -170,12 +218,21 @@ class ObservationEnvelope(ContractModel):
 
     @model_validator(mode="after")
     def validate_time_and_supersession(self) -> ObservationEnvelope:
-        for field_name in ("event_time", "effective_time", "ingest_time"):
-            timestamp = getattr(self, field_name)
-            if timestamp.tzinfo is None or timestamp.utcoffset() is None:
-                raise ValueError(f"{field_name} must include a timezone offset")
+        if self.entity_version != 1:
+            raise ValueError(
+                "observation entity_version must be 1; revisions create a new observation_id"
+            )
         if self.event_time > self.ingest_time:
             raise ValueError("event_time must not be after ingest_time")
+        for field_name in (
+            "execution_time",
+            "capture_time",
+            "confirmation_time",
+            "last_updated_time",
+        ):
+            timestamp = getattr(self.payload, field_name, None)
+            if timestamp is not None and timestamp > self.ingest_time:
+                raise ValueError(f"payload.{field_name} must not be after ingest_time")
         if self.supersedes_observation_id is None and self.supersession_reason is not None:
             raise ValueError("supersession_reason requires supersedes_observation_id")
         if self.supersedes_observation_id is not None and self.supersession_reason is None:
@@ -187,8 +244,19 @@ class ExecutionPayload(FxPayload):
     execution_id: Identifier
     execution_type: Literal["NEW", "AMEND", "CANCEL"]
     execution_status: Literal["EXECUTED", "AMENDED", "CANCELLED"]
-    execution_time: datetime
+    execution_time: AwareTimestamp
     order_id: Identifier | None = None
+
+    @model_validator(mode="after")
+    def validate_execution_status(self) -> ExecutionPayload:
+        expected = {
+            "NEW": ("NEW", "EXECUTED", "NEW"),
+            "AMEND": ("AMEND", "AMENDED", "AMENDED"),
+            "CANCEL": ("CANCEL", "CANCELLED", "CANCELLED"),
+        }[self.execution_type]
+        if (self.execution_type, self.execution_status, self.lifecycle_status) != expected:
+            raise ValueError("execution type, status, and lifecycle_status are inconsistent")
+        return self
 
 
 class ExecutionObservation(ObservationEnvelope):
@@ -201,8 +269,19 @@ class TradeCapturePayload(FxPayload):
     capture_id: Identifier
     capture_type: Literal["NEW", "AMEND", "CANCEL"]
     capture_status: Literal["CAPTURED", "AMENDED", "CANCELLED"]
-    capture_time: datetime
+    capture_time: AwareTimestamp
     execution_reference: Identifier
+
+    @model_validator(mode="after")
+    def validate_capture_status(self) -> TradeCapturePayload:
+        expected = {
+            "NEW": ("NEW", "CAPTURED", "CAPTURED"),
+            "AMEND": ("AMEND", "AMENDED", "AMENDED"),
+            "CANCEL": ("CANCEL", "CANCELLED", "CANCELLED"),
+        }[self.capture_type]
+        if (self.capture_type, self.capture_status, self.lifecycle_status) != expected:
+            raise ValueError("capture type, status, and lifecycle_status are inconsistent")
+        return self
 
 
 class TradeCaptureObservation(ObservationEnvelope):
@@ -215,8 +294,21 @@ class ConfirmationPayload(FxPayload):
     confirmation_id: Identifier
     confirmation_reference: str = Field(min_length=1, max_length=128)
     confirmation_status: Literal["PENDING", "AFFIRMED", "REJECTED", "AMENDED", "CANCELLED"]
-    confirmation_time: datetime
+    confirmation_time: AwareTimestamp
     fpml_profile: Literal["fpml-style-fx-v1"]
+
+    @model_validator(mode="after")
+    def validate_confirmation_status(self) -> ConfirmationPayload:
+        expected_lifecycle = {
+            "PENDING": "CAPTURED",
+            "AFFIRMED": "CONFIRMED",
+            "REJECTED": "CANCELLED",
+            "AMENDED": "AMENDED",
+            "CANCELLED": "CANCELLED",
+        }[self.confirmation_status]
+        if self.lifecycle_status != expected_lifecycle:
+            raise ValueError("confirmation status and lifecycle_status are inconsistent")
+        return self
 
 
 class ConfirmationObservation(ObservationEnvelope):
@@ -229,9 +321,15 @@ class BookingPayload(FxPayload):
     booking_record_id: Identifier
     booking_version: int = Field(ge=1)
     booking_status: Literal["BOOKED", "AMENDED", "CANCELLED"]
-    last_updated_time: datetime
+    last_updated_time: AwareTimestamp
     confirmation_reference: str | None = Field(default=None, max_length=128)
     record_fingerprint: Sha256
+
+    @model_validator(mode="after")
+    def validate_booking_status(self) -> BookingPayload:
+        if self.booking_status != self.lifecycle_status:
+            raise ValueError("booking_status and lifecycle_status are inconsistent")
+        return self
 
 
 class BookingObservation(ObservationEnvelope):
@@ -242,6 +340,7 @@ class BookingObservation(ObservationEnvelope):
 
 class CanonicalFields(ContractModel):
     product_type: ProductType
+    settlement_rule_version: SettlementRuleVersion
     base_currency: Currency
     terms_currency: Currency
     side: Side
@@ -262,13 +361,19 @@ class CanonicalFields(ContractModel):
             raise ValueError("base_amount.currency must equal base_currency")
         if self.terms_amount.currency != self.terms_currency:
             raise ValueError("terms_amount.currency must equal terms_currency")
-        if self.value_date < self.trade_date:
-            raise ValueError("value_date must not precede trade_date")
+        _validate_settlement_window(
+            self.product_type,
+            self.trade_date,
+            self.value_date,
+        )
         return self
 
 
 class FieldProvenance(ContractModel):
     source_type: ObservationKind
+    source_system: SourceSystem
+    source_tenant_id: TenantId
+    source_portfolio_id: PortfolioId
     source_observation_id: Identifier
     source_observation_entity_version: int = Field(ge=1)
     source_version: SourceVersion
@@ -276,14 +381,22 @@ class FieldProvenance(ContractModel):
     normalisation_rule_id: Identifier
     normalisation_rule_version: SemanticVersion
     resolution_rule_version: SemanticVersion
-    observed_at: datetime
-    effective_at: datetime
-    ingested_at: datetime
+    observed_at: AwareTimestamp
+    effective_at: AwareTimestamp
+    ingested_at: AwareTimestamp
     conflict_status: ConflictStatus
+
+    @model_validator(mode="after")
+    def source_system_matches_kind(self) -> FieldProvenance:
+        expected_source_system = _SOURCE_SYSTEM_BY_OBSERVATION_KIND[self.source_type]
+        if self.source_system != expected_source_system:
+            raise ValueError("source_system must match source_type")
+        return self
 
 
 class FieldProvenanceMap(ContractModel):
     product_type: FieldProvenance
+    settlement_rule_version: FieldProvenance
     base_currency: FieldProvenance
     terms_currency: FieldProvenance
     side: FieldProvenance
@@ -296,6 +409,17 @@ class FieldProvenanceMap(ContractModel):
     counterparty_id: FieldProvenance
     book_id: FieldProvenance
 
+    @model_validator(mode="after")
+    def field_paths_match_keys(self) -> FieldProvenanceMap:
+        for field_name in _CANONICAL_FIELD_NAMES:
+            provenance = getattr(self, field_name)
+            expected_path = f"/payload/{field_name}"
+            if provenance.field_path != expected_path:
+                raise ValueError(
+                    f"field_provenance.{field_name}.field_path must be {expected_path}"
+                )
+        return self
+
 
 class CanonicalTrade(ContractModel):
     schema_version: SchemaVersion = "1.0.0"
@@ -305,8 +429,8 @@ class CanonicalTrade(ContractModel):
     portfolio_id: PortfolioId
     correlation_id: CorrelationId
     content_hash: Sha256
-    created_at: datetime
-    updated_at: datetime
+    created_at: AwareTimestamp
+    updated_at: AwareTimestamp
     actor: Actor
     linkage_decision_id: Identifier
     state: CanonicalFields
@@ -316,14 +440,86 @@ class CanonicalTrade(ContractModel):
     def updated_after_created(self) -> CanonicalTrade:
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must not precede created_at")
+        _validate_provenance_scope(self.field_provenance, self.tenant_id, self.portfolio_id)
         return self
 
 
 class SourceVersionSetItem(ContractModel):
     observation_id: Identifier
     observation_kind: ObservationKind
+    source_system: SourceSystem
+    source_tenant_id: TenantId
+    source_portfolio_id: PortfolioId
     source_version: SourceVersion
     content_hash: Sha256
+
+    @model_validator(mode="after")
+    def source_system_matches_kind(self) -> SourceVersionSetItem:
+        expected_source_system = _SOURCE_SYSTEM_BY_OBSERVATION_KIND[self.observation_kind]
+        if self.source_system != expected_source_system:
+            raise ValueError("source_system must match observation_kind")
+        return self
+
+
+def _validate_provenance_scope(
+    field_provenance: FieldProvenanceMap,
+    tenant_id: str,
+    portfolio_id: str,
+) -> None:
+    for field_name in _CANONICAL_FIELD_NAMES:
+        provenance = getattr(field_provenance, field_name)
+        if (provenance.source_tenant_id, provenance.source_portfolio_id) != (
+            tenant_id,
+            portfolio_id,
+        ):
+            raise ValueError(f"field_provenance.{field_name} is outside canonical scope")
+
+
+def _validate_source_version_set_scope(
+    source_version_set: list[SourceVersionSetItem],
+    field_provenance: FieldProvenanceMap,
+    tenant_id: str,
+    portfolio_id: str,
+    source_watermark: AwareTimestamp | None = None,
+) -> None:
+    source_ids = [item.observation_id for item in source_version_set]
+    if len(source_ids) != len(set(source_ids)):
+        raise ValueError("source_version_set observation_id values must be unique")
+    indexed_sources = {item.observation_id: item for item in source_version_set}
+    for item in source_version_set:
+        if (item.source_tenant_id, item.source_portfolio_id) != (tenant_id, portfolio_id):
+            raise ValueError("source_version_set contains a source outside canonical scope")
+
+    for field_name in _CANONICAL_FIELD_NAMES:
+        provenance = getattr(field_provenance, field_name)
+        source = indexed_sources.get(provenance.source_observation_id)
+        if source is None:
+            raise ValueError(f"field_provenance.{field_name} must reference source_version_set")
+        if (
+            source.observation_kind != provenance.source_type
+            or source.source_system != provenance.source_system
+            or source.source_tenant_id != provenance.source_tenant_id
+            or source.source_portfolio_id != provenance.source_portfolio_id
+            or source.source_version != provenance.source_version
+        ):
+            raise ValueError(f"field_provenance.{field_name} does not match source_version_set")
+        if source_watermark is not None and provenance.ingested_at > source_watermark:
+            raise ValueError(f"field_provenance.{field_name}.ingested_at is after source_watermark")
+
+
+def _validate_settlement_window(
+    product_type: ProductType,
+    trade_date: date,
+    value_date: date,
+) -> None:
+    if value_date < trade_date:
+        raise ValueError("value_date must not precede trade_date")
+    if product_type == "FX_FORWARD" and value_date <= trade_date:
+        raise ValueError("FX_FORWARD value_date must be after trade_date")
+    if product_type == "FX_SPOT" and (value_date - trade_date).days > 4:
+        raise ValueError(
+            "FX_SPOT value_date must be within the versioned T+0-to-T+2 business-day envelope"
+        )
 
 
 class CanonicalTradeState(ContractModel):
@@ -335,12 +531,26 @@ class CanonicalTradeState(ContractModel):
     portfolio_id: PortfolioId
     correlation_id: CorrelationId
     content_hash: Sha256
-    as_of_time: datetime
-    source_watermark: datetime
+    as_of_time: AwareTimestamp
+    source_watermark: AwareTimestamp
     source_version_set: list[SourceVersionSetItem] = Field(min_length=1)
     actor: Actor
     state: CanonicalFields
     field_provenance: FieldProvenanceMap
+
+    @model_validator(mode="after")
+    def validate_state_scope_and_availability(self) -> CanonicalTradeState:
+        if self.source_watermark > self.as_of_time:
+            raise ValueError("source_watermark must not be after as_of_time")
+        _validate_provenance_scope(self.field_provenance, self.tenant_id, self.portfolio_id)
+        _validate_source_version_set_scope(
+            self.source_version_set,
+            self.field_provenance,
+            self.tenant_id,
+            self.portfolio_id,
+            self.source_watermark,
+        )
+        return self
 
 
 class CandidateLink(ContractModel):
@@ -369,7 +579,7 @@ class LinkageDecision(ContractModel):
     portfolio_id: PortfolioId
     correlation_id: CorrelationId
     content_hash: Sha256
-    created_at: datetime
+    created_at: AwareTimestamp
     actor: Actor
     source_observation_id: Identifier
     deterministic_rule_version: SemanticVersion
@@ -386,12 +596,41 @@ class LinkageDecision(ContractModel):
 
     @model_validator(mode="after")
     def validate_decision_shape(self) -> LinkageDecision:
+        expected_reason = {
+            "ACCEPTED": "EXACT_DETERMINISTIC_KEY",
+            "REJECTED": "HUMAN_REJECTED",
+            "UNMATCHED": "NO_ELIGIBLE_CANDIDATE",
+            "AMBIGUOUS": "MULTIPLE_ELIGIBLE_CANDIDATES",
+            "CROSS_SCOPE_REJECTED": "TENANT_OR_PORTFOLIO_SCOPE_MISMATCH",
+        }[self.decision]
+        if self.reason_code != expected_reason:
+            raise ValueError("decision and reason_code combination is not permitted")
+
+        candidate_scope_mismatches = [
+            candidate
+            for candidate in self.candidate_links
+            if (candidate.tenant_id, candidate.portfolio_id) != (self.tenant_id, self.portfolio_id)
+        ]
+        if self.decision == "CROSS_SCOPE_REJECTED":
+            if not self.candidate_links or not candidate_scope_mismatches:
+                raise ValueError(
+                    "cross-scope rejection requires at least one cross-scope candidate"
+                )
+        elif candidate_scope_mismatches:
+            raise ValueError(
+                "non-cross-scope linkage decisions cannot contain cross-scope candidates"
+            )
+
         if self.decision == "ACCEPTED":
             if self.chosen_trade_id is None or len(self.candidate_links) != 1:
                 raise ValueError("accepted linkage requires exactly one chosen candidate")
             candidate = self.candidate_links[0]
-            if (candidate.tenant_id, candidate.portfolio_id) != (self.tenant_id, self.portfolio_id):
-                raise ValueError("accepted linkage cannot cross tenant or portfolio scope")
+            if self.chosen_trade_id != candidate.trade_id:
+                raise ValueError("accepted linkage must choose its sole candidate")
+        elif self.decision == "UNMATCHED" and self.candidate_links:
+            raise ValueError("unmatched linkage must not contain candidates")
+        elif self.decision == "AMBIGUOUS" and len(self.candidate_links) < 2:
+            raise ValueError("ambiguous linkage requires multiple candidates")
         elif self.chosen_trade_id is not None:
             raise ValueError("non-accepted linkage must not choose a trade")
         return self
@@ -441,6 +680,7 @@ class IdentityOutcome(ContractModel):
 class IdentityPolicy(ContractModel):
     policy_version: SemanticVersion
     source_identity_fields: list[str]
+    source_version_field: Literal["source_version"]
     delivery_identity_fields: list[str]
     content_hash_field: Literal["content_hash"] = "content_hash"
     outcomes: list[IdentityOutcome] = Field(min_length=8)
@@ -453,15 +693,16 @@ class IdentityPolicy(ContractModel):
             "source_system",
             "observation_kind",
             "source_business_key",
-            "source_version",
         ]
         if self.source_identity_fields != required_source:
             raise ValueError("source_identity_fields must match the approved identity tuple")
         if self.delivery_identity_fields != ["source_system", "source_event_id"]:
             raise ValueError("delivery_identity_fields must match the approved delivery tuple")
         precedences = [row.precedence for row in self.outcomes]
-        if len(set(precedences)) != len(precedences) or set(precedences) != set(
-            range(1, len(precedences) + 1)
+        if (
+            len(self.outcomes) != 8
+            or len(set(precedences)) != len(precedences)
+            or set(precedences) != set(range(1, len(precedences) + 1))
         ):
             raise ValueError("identity outcomes require unique contiguous precedence values")
         outcomes = {row.outcome for row in self.outcomes}
@@ -477,6 +718,56 @@ class IdentityPolicy(ContractModel):
         }
         if outcomes != required_outcomes:
             raise ValueError("identity policy must define exactly the eight approved outcomes")
+
+        expected_rows: dict[str, tuple[dict[str, Any], str, str]] = {
+            "NEW_OBSERVATION": (
+                {"same_delivery_identity": False, "same_source_identity": False},
+                "APPEND",
+                "CREATE_PROJECTION_CANDIDATE",
+            ),
+            "IDEMPOTENT_REPLAY": (
+                {"same_delivery_identity": True, "same_content_hash": True},
+                "APPEND_DUPLICATE_EVIDENCE",
+                "NO_CHANGE",
+            ),
+            "DUPLICATE_SOURCE_CONFLICT": (
+                {"same_delivery_identity": True, "same_content_hash": False},
+                "APPEND_CONFLICT_EVIDENCE",
+                "REQUIRE_LINKAGE_REVIEW",
+            ),
+            "NEW_SOURCE_VERSION": (
+                {"same_source_identity": True, "source_version_relation": "GREATER"},
+                "APPEND_AND_SUPERSEDE_ACTIVE_VERSION",
+                "RECONCILE_NEW_SOURCE_SET",
+            ),
+            "LATE_SOURCE_VERSION_RECORDED": (
+                {"same_source_identity": True, "source_version_relation": "LOWER"},
+                "APPEND_LATE_NON_ACTIVE_VERSION",
+                "NO_CHANGE",
+            ),
+            "REJECT_UNSUPPORTED_SCHEMA_VERSION": (
+                {"schema_version_supported": False},
+                "REJECT",
+                "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS",
+            ),
+            "REJECT_CROSS_PORTFOLIO_LINKAGE": (
+                {"scope_match": False},
+                "REJECT",
+                "DO_NOT_POPULATE_AUTHORITATIVE_FIELDS",
+            ),
+            "LINKAGE_REVIEW_REQUIRED": (
+                {"scope_match": True},
+                "APPEND",
+                "REQUIRE_LINKAGE_REVIEW",
+            ),
+        }
+        for row in self.outcomes:
+            expected_condition, expected_storage, expected_canonical = expected_rows[row.outcome]
+            actual_condition = row.condition.model_dump(exclude={"description"}, exclude_none=True)
+            if actual_condition != expected_condition:
+                raise ValueError(f"condition does not match outcome {row.outcome}")
+            if row.storage_effect != expected_storage or row.canonical_effect != expected_canonical:
+                raise ValueError(f"effects do not match outcome {row.outcome}")
         return self
 
 
@@ -516,6 +807,15 @@ class SourceOfTruthPolicy(ContractModel):
         paths = [rule.field_path for rule in self.field_rules]
         if len(paths) != len(set(paths)):
             raise ValueError("source-of-truth field paths must be unique")
+        expected_paths = set(_SOURCE_OF_TRUTH_FIELD_PATHS)
+        actual_paths = set(paths)
+        if actual_paths != expected_paths:
+            missing = sorted(expected_paths - actual_paths)
+            unexpected = sorted(actual_paths - expected_paths)
+            raise ValueError(
+                f"source-of-truth field paths must match the approved set; "
+                f"missing={missing}, unexpected={unexpected}"
+            )
         return self
 
 
