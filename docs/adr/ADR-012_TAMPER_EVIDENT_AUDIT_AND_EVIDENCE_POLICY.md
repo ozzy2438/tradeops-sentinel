@@ -1,8 +1,9 @@
 ---
 title: "ADR-012 — Tamper-Evident Audit and Evidence Policy"
 tags: [tradeops-sentinel, adr, audit, evidence, integrity]
-status: proposed
+status: draft
 created: 2026-07-31
+implemented_by: ["#5"]
 ---
 
 # ADR-012 — Tamper-Evident Audit and Evidence Policy

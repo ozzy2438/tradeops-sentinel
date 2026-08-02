@@ -1,8 +1,9 @@
 ---
 title: "ADR-009 — GitHub Repository and Engineering Governance"
 tags: [tradeops-sentinel, adr, github, governance, delivery]
-status: proposed
+status: draft
 created: 2026-07-31
+implemented_by: ["#1"]
 ---
 
 # ADR-009 — GitHub Repository and Engineering Governance

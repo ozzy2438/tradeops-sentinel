@@ -1,7 +1,7 @@
 ---
 title: "ADR-008 — MVP Runtime and Deployment Architecture"
 tags: [tradeops-sentinel, adr, platform, runtime, deployment]
-status: proposed
+status: draft
 created: 2026-07-31
 ---
 

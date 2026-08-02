@@ -3,6 +3,7 @@ title: "ADR-001 — Canonical FX Trade Model and Source-of-Truth Precedence"
 tags: [tradeops-sentinel, adr, canonical-model, source-of-truth, reconciliation]
 status: draft
 created: 2026-07-31
+implemented_by: ["#3"]
 ---
 
 # ADR-001 — Canonical FX Trade Model and Source-of-Truth Precedence

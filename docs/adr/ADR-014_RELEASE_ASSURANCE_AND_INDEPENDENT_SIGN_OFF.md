@@ -1,7 +1,7 @@
 ---
 title: "ADR-014 — Release Assurance and Independent Sign-Off"
 tags: [tradeops-sentinel, adr, release-governance, ci-cd, assurance]
-status: proposed
+status: draft
 created: 2026-07-31
 ---
 
