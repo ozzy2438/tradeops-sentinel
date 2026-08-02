@@ -139,8 +139,10 @@ def assemble_canonical_state(
     """Build the next append-only canonical projection version from an
     already-resolved ``field_selection``.
 
-    Raises ``KeyError`` if ``field_selection`` is missing any canonical
-    field, and lets the underlying Pydantic validators reject a selection
+    Raises ``KeyError`` if ``field_selection`` does not have *exactly* the
+    canonical field names as keys — missing fields or unrecognised extra
+    keys are both rejected fail-closed (Honey, 2026-08-02T23:46, finding
+    3) — and lets the underlying Pydantic validators reject a selection
     that spans more than one tenant/portfolio scope (``CanonicalTradeState``
     enforces this — see ``_validate_source_version_set_scope`` in
     ``packages/contracts/models.py``).
@@ -151,9 +153,13 @@ def assemble_canonical_state(
     prior row — this function has no persistence side effects itself.
     """
 
-    missing = set(CANONICAL_FIELD_NAMES) - set(field_selection)
+    selected_fields = set(field_selection)
+    missing = set(CANONICAL_FIELD_NAMES) - selected_fields
     if missing:
         raise KeyError(f"field_selection is missing required canonical fields: {sorted(missing)}")
+    extra = selected_fields - set(CANONICAL_FIELD_NAMES)
+    if extra:
+        raise KeyError(f"field_selection has unrecognised canonical fields: {sorted(extra)}")
 
     state = _canonical_fields_from_selection(field_selection)
     field_provenance = _field_provenance_map(field_selection)

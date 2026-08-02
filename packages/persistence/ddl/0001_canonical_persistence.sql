@@ -24,15 +24,35 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS source_event_inbox (
     inbox_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    -- schema_version, entity_version, and actor mirror ObservationEnvelope
+    -- (packages/contracts/models.py) exactly, alongside payload, so a row
+    -- can reconstruct the full source envelope, not just its FxPayload
+    -- (Honey, 2026-08-02T23:46, finding 1).
+    schema_version        TEXT NOT NULL,
     observation_id       TEXT NOT NULL,
     observation_kind     TEXT NOT NULL
         CHECK (observation_kind IN ('EXECUTION', 'TRADE_CAPTURE', 'CONFIRMATION', 'BOOKING')),
+    entity_version         INTEGER NOT NULL CHECK (entity_version = 1),
     tenant_id            TEXT NOT NULL,
     portfolio_id         TEXT NOT NULL,
     correlation_id       TEXT NOT NULL,
     source_system        TEXT NOT NULL
         CHECK (source_system IN
             ('FIX_EXECUTION', 'FIX_TRADE_CAPTURE', 'FPML_CONFIRMATION', 'MOCK_LEGACY_BOOKING')),
+    -- observation_kind and source_system must be the ADR-001-defined pair
+    -- (EXECUTION/FIX_EXECUTION, TRADE_CAPTURE/FIX_TRADE_CAPTURE,
+    -- CONFIRMATION/FPML_CONFIRMATION, BOOKING/MOCK_LEGACY_BOOKING), exactly
+    -- as the Pydantic ExecutionObservation/TradeCaptureObservation/
+    -- ConfirmationObservation/BookingObservation subclasses enforce.
+    -- Independent per-column CHECKs alone would allow impossible pairs
+    -- such as (EXECUTION, FPML_CONFIRMATION) (Honey, 2026-08-02T23:46,
+    -- finding 2); this coupled CHECK closes that gap at the DB level too.
+    CONSTRAINT source_event_inbox_kind_system_pair CHECK (
+        (observation_kind = 'EXECUTION' AND source_system = 'FIX_EXECUTION')
+        OR (observation_kind = 'TRADE_CAPTURE' AND source_system = 'FIX_TRADE_CAPTURE')
+        OR (observation_kind = 'CONFIRMATION' AND source_system = 'FPML_CONFIRMATION')
+        OR (observation_kind = 'BOOKING' AND source_system = 'MOCK_LEGACY_BOOKING')
+    ),
     source_event_id      TEXT NOT NULL,
     source_business_key  TEXT NOT NULL,
     source_version       TEXT NOT NULL,
@@ -46,6 +66,7 @@ CREATE TABLE IF NOT EXISTS source_event_inbox (
     ingest_time             TIMESTAMPTZ NOT NULL DEFAULT now(),
     source_sequence        INTEGER NOT NULL,
     lineage_group_id       TEXT NOT NULL,
+    actor                   JSONB NOT NULL,
     supersedes_observation_id TEXT,
     supersession_reason     TEXT
         CHECK (supersession_reason IN ('CORRECTION', 'LATE_REVISION', 'SOURCE_AMENDMENT')),
@@ -82,6 +103,9 @@ CREATE INDEX IF NOT EXISTS source_event_inbox_lineage_idx
 -- prior version remains queryable (no destructive overwrite).
 CREATE TABLE IF NOT EXISTS canonical_trade_state_versions (
     row_id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    -- schema_version mirrors CanonicalTradeState.schema_version
+    -- (packages/contracts/models.py) (Honey, 2026-08-02T23:46, finding 1).
+    schema_version           TEXT NOT NULL,
     trade_id                 TEXT NOT NULL,
     entity_version            INTEGER NOT NULL,
     canonical_state_version   INTEGER NOT NULL,

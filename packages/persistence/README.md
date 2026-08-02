@@ -11,18 +11,30 @@ changes, no contract changes. `packages/contracts` is consumed as-is.
 
 - `ddl/0001_canonical_persistence.sql` — canonical PostgreSQL 16 schema:
   `source_event_inbox` and the append-only `canonical_trade_state_versions`.
+  Columns mirror `ObservationEnvelope`/`CanonicalTradeState`
+  (`packages/contracts/models.py`) field-for-field — including
+  `schema_version`, `entity_version`, and `actor`, not just `payload`/
+  `state` — so a row can reconstruct the full source envelope, and a
+  coupled `CHECK` constraint enforces the same valid
+  `observation_kind`/`source_system` pairing the Pydantic observation
+  subclasses enforce (no independently-valid-but-impossible pairs).
 - `inbox.py` — `InboxStore`, a pure in-memory reference implementation of
   the ingest decision (`INSERTED` / `IDEMPOTENT_REPLAY` /
   `SourceConflictError`). Storage-agnostic on purpose: any real adapter
   (e.g. a psycopg-backed store) must reproduce the same three outcomes
   against the same `source_event_inbox_identity_version_key` constraint.
 - `assembler.py` — `assemble_canonical_state`, builds one
-  `CanonicalTradeState` version from a single accepted observation, with
-  full field-level provenance. Does not compare or rank multiple sources
-  against each other (that is reconciliation / TS-11); every canonical
-  field already arrives populated on each observation's payload, so one
-  accepted observation is sufficient to build a complete, valid
-  `CanonicalFields` projection. The caller owns choosing the next
+  `CanonicalTradeState` version from an explicit, already-resolved
+  `field_selection`: a mapping of each of the 13 canonical field names to
+  the single observation already chosen as authoritative for it. It does
+  **not** promote every field from one arbitrary observation and does
+  **not** compare or rank sources itself (that is reconciliation / TS-11)
+  — ADR-001 field-level authority (execution/trade-capture for
+  economics, confirmation for its own status/content, booking for
+  current booking values) is the caller's responsibility to resolve and
+  pass in. `field_selection` must contain *exactly* the 13 canonical
+  field names — both missing and unrecognised extra keys raise
+  `KeyError`, fail-closed. The caller owns choosing the next
   `canonical_state_version` and appending — never updating — a row.
 
 ## Consistency item C-09 — identity vs. delivery

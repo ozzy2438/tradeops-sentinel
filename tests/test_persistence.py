@@ -319,6 +319,25 @@ def test_assemble_canonical_state_requires_a_complete_field_selection() -> None:
         )
 
 
+def test_assemble_canonical_state_rejects_unrecognised_extra_field_keys() -> None:
+    """Fail-closed on the exact key set (Honey, 2026-08-02T23:46, finding
+    3): an unknown extra key must be rejected, not silently accepted into
+    source_version_set/source_watermark computation."""
+    execution = _execution_observation()
+    actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
+    selection_with_extra_key = _single_source_selection(execution)
+    selection_with_extra_key["not_a_canonical_field"] = execution
+
+    with pytest.raises(KeyError):
+        assemble_canonical_state(
+            trade_id="trade_spot_0001",
+            canonical_state_version=1,
+            field_selection=selection_with_extra_key,
+            correlation_id=execution.correlation_id,
+            actor=actor,
+        )
+
+
 def test_versions_are_append_only_no_destructive_overwrite() -> None:
     """Late-arrival/correction acceptance criterion: every prior
     canonical_state_version remains available; the assembler never
