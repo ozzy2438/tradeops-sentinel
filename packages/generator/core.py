@@ -972,6 +972,8 @@ def _provenance_graph(
     cause_node = "cause:0"
     mutation_node = "source_mutation:0"
     break_node = "break_family:0"
+    target_kind = source_mutation["target_observation_kind"]
+    target_observations = [item for item in source if item["observation_kind"] == target_kind]
     nodes.extend(
         [
             {"node_id": cause_node, "node_type": "SYNTHETIC_CAUSE", "cause_type": cause_type},
@@ -1003,6 +1005,48 @@ def _provenance_graph(
                 "from": mutation_node,
                 "to": delivery_node,
                 "relationship": "DELIVERED_AS",
+            }
+        )
+        if behaviour == "MISSING":
+            expected_node = f"expected_source_absence:{target_kind}"
+            if not any(node["node_id"] == expected_node for node in nodes):
+                nodes.append(
+                    {
+                        "node_id": expected_node,
+                        "node_type": "EXPECTED_SOURCE_ABSENCE",
+                        "observation_kind": target_kind,
+                    }
+                )
+            edges.extend(
+                [
+                    {
+                        "from": mutation_node,
+                        "to": expected_node,
+                        "relationship": "EXPECTS_ABSENCE",
+                    },
+                    {
+                        "from": delivery_node,
+                        "to": expected_node,
+                        "relationship": "DELIVERS_ABSENCE",
+                    },
+                ]
+            )
+        else:
+            edges.extend(
+                {
+                    "from": delivery_node,
+                    "to": f"observation:{item['observation_id']}",
+                    "relationship": "DELIVERS_OBSERVATION",
+                }
+                for item in source
+            )
+
+    for item in target_observations:
+        edges.append(
+            {
+                "from": mutation_node,
+                "to": f"observation:{item['observation_id']}",
+                "relationship": "MUTATES_OBSERVATION",
             }
         )
 

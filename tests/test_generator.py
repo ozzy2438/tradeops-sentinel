@@ -203,6 +203,8 @@ def test_mutated_truth_graph_preserves_the_complete_cause_chain() -> None:
             "DELIVERED_AS",
             "CLASSIFIES_AS",
         } <= relationships
+        assert {"DELIVERS_OBSERVATION", "DELIVERS_ABSENCE"} & relationships
+        assert {"MUTATES_OBSERVATION", "EXPECTS_ABSENCE"} & relationships
         fact_nodes = [node for node in graph["nodes"] if node["node_type"] == "DIFFERENCE_FACT"]
         assert [node["fact"] for node in fact_nodes] == scenario["expected_difference_facts"]
         assert any(
