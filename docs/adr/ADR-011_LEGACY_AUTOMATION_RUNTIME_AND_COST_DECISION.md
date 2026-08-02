@@ -1,7 +1,7 @@
 ---
 title: "ADR-011 — Legacy Automation Runtime and Cost Decision"
 tags: [tradeops-sentinel, adr, uipath, rpa, cost]
-status: proposed
+status: draft
 created: 2026-07-31
 ---
 

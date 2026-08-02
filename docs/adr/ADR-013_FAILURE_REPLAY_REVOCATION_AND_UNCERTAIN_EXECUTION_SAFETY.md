@@ -1,7 +1,7 @@
 ---
 title: "ADR-013 — Failure, Replay, Revocation, and Uncertain-Execution Safety"
 tags: [tradeops-sentinel, adr, idempotency, rpa, recovery, safety]
-status: proposed
+status: draft
 created: 2026-07-31
 ---
 

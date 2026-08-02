@@ -3,6 +3,7 @@ title: "ADR-002 — Deterministic Trade-Break Taxonomy"
 tags: [tradeops-sentinel, adr, reconciliation, trade-breaks, fx]
 status: draft
 created: 2026-07-31
+implemented_by: ["#4"]
 ---
 
 # ADR-002 — Deterministic Trade-Break Taxonomy

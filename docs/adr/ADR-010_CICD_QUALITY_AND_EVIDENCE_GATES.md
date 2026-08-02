@@ -1,8 +1,9 @@
 ---
 title: "ADR-010 — CI/CD Quality and Evidence Gates"
 tags: [tradeops-sentinel, adr, ci-cd, evidence, quality-gates]
-status: proposed
+status: draft
 created: 2026-07-31
+implemented_by: ["#2"]
 ---
 
 # ADR-010 — CI/CD Quality and Evidence Gates

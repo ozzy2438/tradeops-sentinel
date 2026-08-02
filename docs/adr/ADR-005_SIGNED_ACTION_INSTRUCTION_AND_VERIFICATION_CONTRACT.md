@@ -3,6 +3,7 @@ title: "ADR-005 — Signed Action Instruction and Verification Contract"
 tags: [tradeops-sentinel, adr, signed-action, idempotency, rpa, verification]
 status: draft
 created: 2026-07-31
+implemented_by: ["#5"]
 ---
 
 # ADR-005 — Signed Action Instruction and Verification Contract
