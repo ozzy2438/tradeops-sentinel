@@ -131,7 +131,7 @@ class GeneratorConfig:
             raise ValueError("portfolio_ids must use the TS-3 portfolio namespace")
         if self.start_time.tzinfo is None or self.start_time.utcoffset() is None:
             raise ValueError("start_time must be timezone-aware")
-        if self.start_time.astimezone(UTC) != self.start_time:
+        if self.start_time.utcoffset() != timedelta(0):
             raise ValueError("start_time must already be UTC for deterministic generation")
         if self.clean_per_product != 24:
             raise ValueError("the approved E3 population requires 24 clean scenarios per product")
@@ -220,42 +220,46 @@ def generate_corpus(config: GeneratorConfig | None = None) -> GeneratedCorpus:
     active_config = config or GeneratorConfig()
     source_observations: list[dict[str, Any]] = []
     truth_ledger: list[dict[str, Any]] = []
-    scenario_number = 0
 
+    # The evaluator population is shuffled before runtime identifiers and
+    # timestamps are allocated.  This keeps the approved counts while
+    # preventing clean-before-mutated ordering from becoming a runtime label.
+    plans: list[tuple[ProductType, MutationSpec | None]] = []
     for product in PRODUCTS:
-        for _ in range(active_config.clean_per_product):
-            scenario_number += 1
-            base = _build_lifecycle(active_config, product, scenario_number)
+        plans.extend((product, None) for _ in range(active_config.clean_per_product))
+        for family in BREAK_FAMILIES:
+            plans.extend((product, spec) for spec in _mutation_specs(family))
+    random.Random(active_config.seed + 104729).shuffle(plans)
+
+    for scenario_number, (product, spec) in enumerate(plans, start=1):
+        base = _build_lifecycle(active_config, product, scenario_number)
+        if spec is None:
             _validate_sources(base)
             source_observations.extend(base)
             truth_ledger.append(_clean_truth(active_config, product, scenario_number, base))
+            continue
 
-    for family in BREAK_FAMILIES:
-        for product in PRODUCTS:
-            for spec in _mutation_specs(family):
-                scenario_number += 1
-                base = _build_lifecycle(active_config, product, scenario_number)
-                mutated, facts, delivery, cause = _apply_mutation(
-                    base,
-                    active_config,
-                    product,
-                    scenario_number,
-                    spec,
-                )
-                _validate_sources(mutated)
-                source_observations.extend(mutated)
-                truth_ledger.append(
-                    _mutated_truth(
-                        active_config,
-                        product,
-                        scenario_number,
-                        spec,
-                        mutated,
-                        facts,
-                        delivery,
-                        cause,
-                    )
-                )
+        mutated, facts, delivery, cause = _apply_mutation(
+            base,
+            active_config,
+            product,
+            scenario_number,
+            spec,
+        )
+        _validate_sources(mutated)
+        source_observations.extend(mutated)
+        truth_ledger.append(
+            _mutated_truth(
+                active_config,
+                product,
+                scenario_number,
+                spec,
+                mutated,
+                facts,
+                delivery,
+                cause,
+            )
+        )
 
     if scenario_number != active_config.scenario_count:
         raise AssertionError("generated scenario count does not match approved population")
@@ -466,14 +470,12 @@ def _build_lifecycle(
     scenario_number: int,
 ) -> list[dict[str, Any]]:
     product_config = _PRODUCT_CONFIG[product]
-    product_slug = product.removeprefix("FX_").lower()
-    scenario_slug = f"{scenario_number:04d}"
-    trade_id = f"trade_{product_slug}_{scenario_slug}"
     portfolio_id = config.portfolio_ids[(scenario_number - 1) % len(config.portfolio_ids)]
-    correlation_id = f"corr_e3_{product_slug}_{scenario_slug}"
-    lineage_id = f"lineage_e3_{product_slug}_{scenario_slug}"
-    counterparty = product_config.counterparty_id
-    book = "book_london" if portfolio_id.endswith("london") else "book_sydney"
+    trade_id = _opaque_identifier(config, "trade", "lifecycle", scenario_number)
+    correlation_id = _opaque_identifier(config, "corr", "lifecycle", scenario_number)
+    lineage_id = _opaque_identifier(config, "lineage", "lifecycle", scenario_number)
+    counterparty = _opaque_identifier(config, "counterparty", product_config.product_type)
+    book = _opaque_identifier(config, "book", "portfolio", portfolio_id)
     rng = random.Random(config.seed + scenario_number * 7919)
     base_amount = Decimal("1000000.00") + Decimal(rng.randrange(0, 25)) * Decimal("1000.00")
     if product == "FX_SPOT":
@@ -522,14 +524,16 @@ def _build_lifecycle(
         payload.update(_kind_payload(kind, correlation_id, event_time))
         observation = {
             "schema_version": "1.0.0",
-            "observation_id": f"obs_{kind.lower()}_{product_slug}_{scenario_slug}",
+            "observation_id": _opaque_identifier(
+                config, f"obs_{kind.lower()}", "base", scenario_number, kind
+            ),
             "observation_kind": kind,
             "entity_version": 1,
             "tenant_id": config.tenant_id,
             "portfolio_id": portfolio_id,
             "correlation_id": correlation_id,
             "source_system": _SOURCE_SYSTEM_BY_KIND[kind],
-            "source_event_id": f"evt_{kind.lower()}_{product_slug}_{scenario_slug}",
+            "source_event_id": _opaque_identifier(config, "evt", "base", scenario_number, kind),
             "source_business_key": trade_id,
             "source_version": "1",
             "content_hash": "sha256:" + "0" * 64,
@@ -551,7 +555,7 @@ def _kind_payload(
     correlation_id: str,
     event_time: datetime,
 ) -> dict[str, Any]:
-    suffix = correlation_id.removeprefix("corr_e3_")
+    suffix = correlation_id.removeprefix("corr_")
     if kind == "EXECUTION":
         return {
             "lifecycle_status": "NEW",
@@ -624,9 +628,11 @@ def _apply_mutation(
     elif spec.mutation_type == "UNMATCHED":
         if target is None or base_target is None:
             raise AssertionError("unmatched mutation target was not present")
-        orphan_id = f"orphan_{product.removeprefix('FX_').lower()}_{scenario_number:04d}"
-        target["source_business_key"] = orphan_id
-        target["payload"]["source_trade_id"] = orphan_id
+        alternate_trade_id = _opaque_identifier(
+            config, "trade", "alternate", scenario_number, spec.variant_id
+        )
+        target["source_business_key"] = alternate_trade_id
+        target["payload"]["source_trade_id"] = alternate_trade_id
         _recompute_hashes(target)
         facts = [
             {
@@ -643,11 +649,19 @@ def _apply_mutation(
         if target is None or base_target is None:
             raise AssertionError("ambiguous mutation target was not present")
         candidate = copy.deepcopy(target)
-        candidate_suffix = f"candidate_{scenario_number:04d}"
-        candidate["observation_id"] = f"obs_{spec.target_kind.lower()}_{candidate_suffix}"
-        candidate["source_event_id"] = f"evt_{spec.target_kind.lower()}_{candidate_suffix}"
+        candidate_suffix = _opaque_token(
+            config, "candidate", scenario_number, spec.target_kind, spec.variant_id
+        )
+        candidate["observation_id"] = _opaque_identifier(
+            config, f"obs_{spec.target_kind.lower()}", "alternate", scenario_number, spec.variant_id
+        )
+        candidate["source_event_id"] = _opaque_identifier(
+            config, "evt", "alternate", scenario_number, spec.variant_id
+        )
         candidate["source_version"] = "2"
-        candidate["payload"]["source_trade_id"] = f"candidate_trade_{scenario_number:04d}"
+        candidate["payload"]["source_trade_id"] = _opaque_identifier(
+            config, "trade", "alternate", scenario_number, spec.variant_id
+        )
         _rename_payload_identity(candidate, spec.target_kind, candidate_suffix)
         _recompute_hashes(candidate)
         mutated.append(candidate)
@@ -667,9 +681,12 @@ def _apply_mutation(
         if target is None or base_target is None:
             raise AssertionError("duplicate mutation target was not present")
         duplicate = copy.deepcopy(target)
-        duplicate_suffix = f"replay_{scenario_number:04d}"
-        duplicate["observation_id"] = f"obs_{spec.target_kind.lower()}_{duplicate_suffix}"
-        duplicate["source_event_id"] = f"evt_{spec.target_kind.lower()}_{duplicate_suffix}"
+        duplicate["observation_id"] = _opaque_identifier(
+            config, f"obs_{spec.target_kind.lower()}", "alternate", scenario_number, spec.variant_id
+        )
+        duplicate["source_event_id"] = _opaque_identifier(
+            config, "evt", "alternate", scenario_number, spec.variant_id
+        )
         if spec.late:
             duplicate["ingest_time"] = _timestamp(
                 _parse_timestamp(duplicate["ingest_time"]) + timedelta(minutes=5)
@@ -787,7 +804,9 @@ def _apply_mutation(
         if target is None or base_target is None:
             raise AssertionError("post-action mutation target was not present")
         before = _path_value(base_target, spec.field_path)
-        target["payload"]["book_id"] = f"book_reconciled_{scenario_number:04d}"
+        target["payload"]["book_id"] = _opaque_identifier(
+            config, "book", "post-action", scenario_number, spec.variant_id
+        )
         _recompute_hashes(target)
         facts = [
             {
@@ -857,6 +876,12 @@ def _mutated_truth(
     delivery: list[str],
     cause: CauseType,
 ) -> dict[str, Any]:
+    family = _family_for_spec(spec)
+    source_mutation = {
+        "mutation_type": spec.mutation_type,
+        "target_observation_kind": spec.target_kind,
+        "field_path": spec.field_path,
+    }
     return {
         "schema_version": "1.0.0",
         "scenario_id": f"scenario_{scenario_number:03d}",
@@ -865,19 +890,22 @@ def _mutated_truth(
         "portfolio_id": source[0]["portfolio_id"],
         "product_type": product,
         "population": "MUTATED",
-        "break_family": _family_for_spec(spec),
+        "break_family": family,
         "variant_id": spec.variant_id,
         "cause_type": cause,
-        "source_mutation": {
-            "mutation_type": spec.mutation_type,
-            "target_observation_kind": spec.target_kind,
-            "field_path": spec.field_path,
-        },
+        "source_mutation": source_mutation,
         "delivery_behaviour": sorted(set(delivery)),
         "expected_difference_facts": facts,
         "seed": config.seed,
         "source_observation_ids": [item["observation_id"] for item in source],
-        "provenance_graph": _provenance_graph(source),
+        "provenance_graph": _provenance_graph(
+            source,
+            cause_type=cause,
+            source_mutation=source_mutation,
+            delivery_behaviour=sorted(set(delivery)),
+            expected_difference_facts=facts,
+            break_family=family,
+        ),
         "truth_access_classification": "EVALUATOR_ONLY",
     }
 
@@ -889,25 +917,126 @@ def _family_for_spec(spec: MutationSpec) -> BreakFamily:
     raise AssertionError(f"mutation spec is not in the approved taxonomy: {spec.variant_id}")
 
 
-def _provenance_graph(source: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
-        "nodes": [
+def _provenance_graph(
+    source: list[dict[str, Any]],
+    *,
+    cause_type: CauseType | None = None,
+    source_mutation: dict[str, Any] | None = None,
+    delivery_behaviour: list[str] | None = None,
+    expected_difference_facts: list[dict[str, Any]] | None = None,
+    break_family: BreakFamily | None = None,
+) -> dict[str, Any]:
+    """Build the evaluator-only cause-to-break provenance graph.
+
+    The scalar truth fields remain convenient for filtering, while this graph
+    explicitly preserves the ADR-006 chain for independent oracle checks.
+    Runtime source observations never include these nodes or edges.
+    """
+
+    if not source:
+        raise ValueError("a provenance graph requires at least one source observation")
+
+    lineage_id = source[0]["lineage_group_id"]
+    nodes: list[dict[str, Any]] = [
+        {"node_id": f"lineage:{lineage_id}", "node_type": "LINEAGE"},
+        *[
             {
+                "node_id": f"observation:{item['observation_id']}",
+                "node_type": "SOURCE_OBSERVATION",
                 "observation_id": item["observation_id"],
                 "observation_kind": item["observation_kind"],
                 "source_system": item["source_system"],
             }
             for item in source
         ],
-        "edges": [
+    ]
+    edges: list[dict[str, str]] = [
+        {
+            "from": f"observation:{item['observation_id']}",
+            "to": f"lineage:{lineage_id}",
+            "relationship": "BELONGS_TO_LINEAGE",
+        }
+        for item in source
+    ]
+
+    if cause_type is None:
+        return {"nodes": nodes, "edges": edges}
+    if (
+        source_mutation is None
+        or delivery_behaviour is None
+        or expected_difference_facts is None
+        or break_family is None
+    ):
+        raise ValueError("mutated provenance requires the complete truth chain")
+
+    cause_node = "cause:0"
+    mutation_node = "source_mutation:0"
+    break_node = "break_family:0"
+    nodes.extend(
+        [
+            {"node_id": cause_node, "node_type": "SYNTHETIC_CAUSE", "cause_type": cause_type},
             {
-                "from": item["observation_id"],
-                "to": item["lineage_group_id"],
-                "relationship": "BELONGS_TO_LINEAGE",
+                "node_id": mutation_node,
+                "node_type": "SOURCE_MUTATION",
+                **copy.deepcopy(source_mutation),
+            },
+            {
+                "node_id": break_node,
+                "node_type": "BREAK_FAMILY",
+                "break_family": break_family,
+            },
+        ]
+    )
+    edges.append({"from": cause_node, "to": mutation_node, "relationship": "CAUSE_OF"})
+
+    for index, behaviour in enumerate(delivery_behaviour):
+        delivery_node = f"delivery:{index}"
+        nodes.append(
+            {
+                "node_id": delivery_node,
+                "node_type": "DELIVERY_BEHAVIOUR",
+                "behaviour": behaviour,
             }
-            for item in source
-        ],
-    }
+        )
+        edges.append(
+            {
+                "from": mutation_node,
+                "to": delivery_node,
+                "relationship": "DELIVERED_AS",
+            }
+        )
+
+    source_ids = {item["observation_id"] for item in source}
+    for index, fact in enumerate(expected_difference_facts):
+        fact_node = f"difference_fact:{index}"
+        nodes.append(
+            {
+                "node_id": fact_node,
+                "node_type": "DIFFERENCE_FACT",
+                "fact": copy.deepcopy(fact),
+            }
+        )
+        referenced_ids = {
+            value
+            for key, value in fact.items()
+            if key.endswith("observation_id") and isinstance(value, str) and value in source_ids
+        }
+        if referenced_ids:
+            for observation_id in sorted(referenced_ids):
+                edges.append(
+                    {
+                        "from": f"observation:{observation_id}",
+                        "to": fact_node,
+                        "relationship": "SUPPORTS_DIFFERENCE_FACT",
+                    }
+                )
+        else:
+            edges.append(
+                {"from": mutation_node, "to": fact_node, "relationship": "MATERIALIZES_FACT"}
+            )
+        edges.append({"from": fact_node, "to": break_node, "relationship": "CLASSIFIES_AS"})
+
+    return {"nodes": nodes, "edges": edges}
 
 
 def _coverage_manifest(
@@ -1059,6 +1188,24 @@ def _recompute_hashes(observation: dict[str, Any]) -> None:
 
 def _decimal_string(value: Decimal, scale: int) -> str:
     return f"{value:.{scale}f}"
+
+
+def _opaque_token(config: GeneratorConfig, namespace: str, *components: object) -> str:
+    """Return a stable token with no runtime scenario/template semantics."""
+
+    material = "\x1f".join(
+        ("e3-opaque-v1", str(config.seed), namespace, *(str(component) for component in components))
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+
+
+def _opaque_identifier(
+    config: GeneratorConfig,
+    prefix: str,
+    namespace: str,
+    *components: object,
+) -> str:
+    return f"{prefix}_{_opaque_token(config, namespace, *components)}"
 
 
 def _parse_timestamp(value: str) -> datetime:

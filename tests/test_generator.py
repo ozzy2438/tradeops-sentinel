@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +61,14 @@ def _nested_keys(value: Any) -> set[str]:
         for item in value:
             keys.update(_nested_keys(item))
     return keys
+
+
+def _string_values(value: Any) -> list[str]:
+    if isinstance(value, dict):
+        return [item for child in value.values() for item in _string_values(child)]
+    if isinstance(value, list):
+        return [item for child in value for item in _string_values(child)]
+    return [value] if isinstance(value, str) else []
 
 
 def test_approved_population_and_coverage_are_exact() -> None:
@@ -159,6 +169,48 @@ def test_truth_ledger_is_evaluator_only_and_runtime_has_no_truth_metadata() -> N
     )
 
 
+def test_runtime_values_are_opaque_and_population_order_is_not_a_label() -> None:
+    corpus = generate_corpus()
+    runtime_values = _string_values(corpus.runtime_bundle())
+
+    marker_pattern = re.compile(r"orphan|candidate|replay|reconciled|scenario_", re.IGNORECASE)
+    assert [value for value in runtime_values if marker_pattern.search(value)] == []
+
+    populations = [scenario["population"] for scenario in corpus.truth_ledger]
+    assert any(population == "MUTATED" for population in populations[:48])
+    assert any(population == "CLEAN" for population in populations[48:])
+
+
+def test_mutated_truth_graph_preserves_the_complete_cause_chain() -> None:
+    corpus = generate_corpus()
+
+    for scenario in corpus.truth_ledger:
+        if scenario["population"] != "MUTATED":
+            continue
+        graph = scenario["provenance_graph"]
+        node_types = {node["node_type"] for node in graph["nodes"]}
+        relationships = {edge["relationship"] for edge in graph["edges"]}
+        assert {
+            "SYNTHETIC_CAUSE",
+            "SOURCE_MUTATION",
+            "DELIVERY_BEHAVIOUR",
+            "SOURCE_OBSERVATION",
+            "DIFFERENCE_FACT",
+            "BREAK_FAMILY",
+        } <= node_types
+        assert {
+            "CAUSE_OF",
+            "DELIVERED_AS",
+            "CLASSIFIES_AS",
+        } <= relationships
+        fact_nodes = [node for node in graph["nodes"] if node["node_type"] == "DIFFERENCE_FACT"]
+        assert [node["fact"] for node in fact_nodes] == scenario["expected_difference_facts"]
+        assert any(
+            edge["relationship"] in {"SUPPORTS_DIFFERENCE_FACT", "MATERIALIZES_FACT"}
+            for edge in graph["edges"]
+        )
+
+
 def test_mutations_have_only_approved_families_and_truth_causes() -> None:
     corpus = generate_corpus()
     approved_causes = {
@@ -204,6 +256,19 @@ def test_write_to_emits_deterministic_machine_readable_files(tmp_path: Path) -> 
 def test_invalid_population_configuration_fails_closed() -> None:
     with pytest.raises(ValueError, match="24 clean"):
         GeneratorConfig(clean_per_product=23)
+
+
+def test_non_utc_offset_start_time_fails_closed() -> None:
+    with pytest.raises(ValueError, match="UTC"):
+        GeneratorConfig(
+            start_time=datetime(
+                2026,
+                7,
+                1,
+                10,
+                tzinfo=timezone(timedelta(hours=10)),
+            )
+        )
 
 
 def test_invalid_observation_is_rejected_by_merged_contract() -> None:
