@@ -14,6 +14,8 @@ validated in the target environment.
 - independent oracle with fail-closed direct, transitive and dynamic import
   isolation checks;
 - append-only PostgreSQL triggers for source inbox and canonical versions;
+- fresh-install, legacy-schema upgrade and full-sequence reapply migration
+  tests for the append-only/portfolio-scoped DDL;
 - deterministic replay/conflict and locked-input rerun invariants;
 - wheel build plus clean isolated installation/import verification;
 - Ruff, strict mypy, pytest, PostgreSQL 16 integration, dependency, secret and
@@ -44,7 +46,7 @@ and recorded during release assurance.
 ## Remaining blockers to an operational production-ready claim
 
 - implement a transactional PostgreSQL adapter and concurrent replay/conflict,
-  canonical-version allocation, rollback and migration-upgrade tests;
+  canonical-version allocation, and rollback tests;
 - complete TS-14 tamper-evident audit ledger and independent verifier;
 - complete TS-15 release-evidence manifest and hard-fail completeness gate;
 - validate secrets, backup/restore, observability, capacity, recovery,
