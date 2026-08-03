@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0.0",
+  "artifact": "TS-12-import-isolation-dynamic-negative-path",
+  "issue": 12,
+  "adr": "ADR-014",
+  "expected": {
+    "isolated": false,
+    "enforcement": "ImportIsolationError",
+    "failure_surface": "dynamic_imports"
+  },
+  "observed_report": {
+    "direct_forbidden_edges": [],
+    "dynamic_imports": [
+      "packages.oracle.entry: importlib.import_module (alias: il)",
+      "packages.oracle.entry: importlib.import_module (alias: import_module)"
+    ],
+    "edges": [],
+    "isolated": false,
+    "modules": [
+      "packages",
+      "packages.oracle",
+      "packages.oracle.entry",
+      "packages.reconciliation"
+    ],
+    "oracle_prefix": "packages.oracle",
+    "oracle_to_reconciliation_paths": [],
+    "parse_errors": [],
+    "reconciliation_prefix": "packages.reconciliation",
+    "reconciliation_to_oracle_paths": [],
+    "schema_version": "1.0.0",
+    "unresolved_internal_imports": []
+  }
+}

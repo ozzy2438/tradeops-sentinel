@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "artifact": "TS-12-independent-oracle-parity-matrix",
+  "issue": 12,
+  "adr": "ADR-014",
+  "charter_definition_of_done": "§31",
+  "baseline_main_merge": "c2c9a04f27a8665752727c07afdd50c181702e9c",
+  "reviewed_ts11_head": "cdeef7c458ad8b43ef5d657636c9241cd2cb2979",
+  "input_boundary": "approved TS-11 source-version set plus canonical source watermark",
+  "oracle_must_not_read": "production reconciliation evaluator results",
+  "rows": [
+    {"case_id": "clean_fx_spot", "product_type": "FX_SPOT", "truth_family": null, "expected_families": [], "source_ref": "E3 clean fixture"},
+    {"case_id": "clean_fx_forward", "product_type": "FX_FORWARD", "truth_family": null, "expected_families": [], "source_ref": "E3 clean fixture"},
+    {"case_id": "missing_required_source_fx_spot", "product_type": "FX_SPOT", "truth_family": "MISSING_REQUIRED_SOURCE", "expected_families": ["MISSING_REQUIRED_SOURCE"], "source_ref": "E3 truth ledger"},
+    {"case_id": "missing_required_source_fx_forward", "product_type": "FX_FORWARD", "truth_family": "MISSING_REQUIRED_SOURCE", "expected_families": ["MISSING_REQUIRED_SOURCE"], "source_ref": "E3 truth ledger"},
+    {"case_id": "ambiguous_or_unmatched_linkage_fx_spot", "product_type": "FX_SPOT", "truth_family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE", "expected_families": ["AMBIGUOUS_OR_UNMATCHED_LINKAGE"], "source_ref": "E3 truth ledger"},
+    {"case_id": "ambiguous_or_unmatched_linkage_fx_forward", "product_type": "FX_FORWARD", "truth_family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE", "expected_families": ["AMBIGUOUS_OR_UNMATCHED_LINKAGE"], "source_ref": "E3 truth ledger"},
+    {"case_id": "duplicate_source_conflict_fx_spot", "product_type": "FX_SPOT", "truth_family": "DUPLICATE_SOURCE_CONFLICT", "expected_families": ["DUPLICATE_SOURCE_CONFLICT"], "source_ref": "E3 truth ledger"},
+    {"case_id": "duplicate_source_conflict_fx_forward", "product_type": "FX_FORWARD", "truth_family": "DUPLICATE_SOURCE_CONFLICT", "expected_families": ["DUPLICATE_SOURCE_CONFLICT"], "source_ref": "E3 truth ledger"},
+    {"case_id": "currency_pair_or_side_mismatch_fx_spot", "product_type": "FX_SPOT", "truth_family": "CURRENCY_PAIR_OR_SIDE_MISMATCH", "expected_families": ["CURRENCY_PAIR_OR_SIDE_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "currency_pair_or_side_mismatch_fx_forward", "product_type": "FX_FORWARD", "truth_family": "CURRENCY_PAIR_OR_SIDE_MISMATCH", "expected_families": ["CURRENCY_PAIR_OR_SIDE_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "economic_value_mismatch_fx_spot", "product_type": "FX_SPOT", "truth_family": "ECONOMIC_VALUE_MISMATCH", "expected_families": ["ECONOMIC_VALUE_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "economic_value_mismatch_fx_forward", "product_type": "FX_FORWARD", "truth_family": "ECONOMIC_VALUE_MISMATCH", "expected_families": ["ECONOMIC_VALUE_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "trade_or_value_date_mismatch_fx_spot", "product_type": "FX_SPOT", "truth_family": "TRADE_OR_VALUE_DATE_MISMATCH", "expected_families": ["TRADE_OR_VALUE_DATE_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "trade_or_value_date_mismatch_fx_forward", "product_type": "FX_FORWARD", "truth_family": "TRADE_OR_VALUE_DATE_MISMATCH", "expected_families": ["TRADE_OR_VALUE_DATE_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "lifecycle_status_mismatch_fx_spot", "product_type": "FX_SPOT", "truth_family": "LIFECYCLE_STATUS_MISMATCH", "expected_families": ["LIFECYCLE_STATUS_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "lifecycle_status_mismatch_fx_forward", "product_type": "FX_FORWARD", "truth_family": "LIFECYCLE_STATUS_MISMATCH", "expected_families": ["LIFECYCLE_STATUS_MISMATCH"], "source_ref": "E3 truth ledger"},
+    {"case_id": "post_action_verification_failure_fx_spot", "product_type": "FX_SPOT", "truth_family": "POST_ACTION_VERIFICATION_FAILURE", "expected_families": ["POST_ACTION_VERIFICATION_FAILURE"], "source_ref": "TS-12 explicit readback fixture"},
+    {"case_id": "post_action_verification_failure_fx_forward", "product_type": "FX_FORWARD", "truth_family": "POST_ACTION_VERIFICATION_FAILURE", "expected_families": ["POST_ACTION_VERIFICATION_FAILURE"], "source_ref": "TS-12 explicit readback fixture"}
+  ]
+}

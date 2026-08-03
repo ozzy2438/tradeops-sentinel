@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0.0",
+  "artifact": "TS-12-validation-summary",
+  "issue": 12,
+  "adr": "ADR-014",
+  "charter_definition_of_done": "§31",
+  "base_main_merge": "c2c9a04f27a8665752727c07afdd50c181702e9c",
+  "reviewed_ts11_head": "cdeef7c458ad8b43ef5d657636c9241cd2cb2979",
+  "implementation_commit_sha": "c498445d8e5e24ee369ff9a4c982834594854674",
+  "evidence_commit_parent_sha": "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8",
+  "evidence_scope": "This summary records validation of the TS12-ISO-01 repair commit; its containing commit adds only refreshed evidence and an assertion that the summary is traceable.",
+  "repair_parent_sha": "abde5a077acbcc742452ef7894129ac4c3e790ea",
+  "repair_commit_sha": "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8",
+  "repair_scope": "TS12-ISO-01 alias-aware dynamic-import detection and negative evidence only.",
+  "evidence_files": {
+    "dependency_graph": "packages/oracle/evidence/import-isolation.json",
+    "parity_matrix": "packages/oracle/evidence/parity-matrix.json",
+    "negative_path": "packages/oracle/evidence/import-isolation-negative.json",
+    "dynamic_import_negative_path": "packages/oracle/evidence/import-isolation-dynamic-negative.json"
+  },
+  "local_validation": {
+    "pytest": {"command": "pytest -q", "result": "PASS", "tests": 237},
+    "ruff_check": {"command": "ruff check .", "result": "PASS"},
+    "ruff_format": {"command": "ruff format --check .", "result": "PASS"},
+    "mypy": {"command": "mypy", "result": "PASS", "source_files": 24},
+    "compile": {"command": "python -m compileall -q packages scripts tests", "result": "PASS"},
+    "diff_check": {"command": "git diff --check", "result": "PASS"},
+    "ai_authorship_trailers": {"command": "check_ai_trailer.py origin/main HEAD", "result": "PASS"}
+  },
+  "import_isolation": {
+    "result": "PASS",
+    "direct_forbidden_edges": 0,
+    "oracle_to_reconciliation_paths": 0,
+    "reconciliation_to_oracle_paths": 0,
+    "parse_errors": 0,
+    "unresolved_internal_imports": 0,
+    "dynamic_imports": 0,
+    "negative_enforcement": "ImportIsolationError",
+    "dynamic_alias_negative_cases": 2,
+    "dynamic_alias_enforcement": "ImportIsolationError"
+  },
+  "genuine_ci": {
+    "run_id": 30793533345,
+    "head_sha": "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8",
+    "conclusion": "success",
+    "required_jobs": [
+      "lint-type-unit",
+      "oracle-import-isolation",
+      "dependency-scan",
+      "secret-scan",
+      "ai-authorship-trailer-check"
+    ],
+    "disabled_jobs": "skipped and not counted"
+  },
+  "traceability": {
+    "oracle_input_boundary": "approved TS-11 source-version set plus canonical source watermark",
+    "oracle_must_not_read": "production reconciliation evaluator results",
+    "products": ["FX_SPOT", "FX_FORWARD"],
+    "break_families": 8
+  }
+}
