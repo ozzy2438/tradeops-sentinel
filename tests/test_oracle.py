@@ -23,7 +23,7 @@ from packages.contracts.models import (
 )
 from packages.generator import generate_corpus
 from packages.oracle import evaluate
-from packages.oracle.import_graph import scan_repository
+from packages.oracle.import_graph import ImportIsolationError, enforce_isolation, scan_repository
 from packages.persistence import assemble_canonical_state
 from packages.persistence.assembler import CANONICAL_FIELD_NAMES
 from packages.reconciliation import (
@@ -408,11 +408,32 @@ def test_import_isolation_fails_closed_on_direct_and_transitive_edges(tmp_path: 
     )
 
     report = scan_repository(tmp_path)
+    negative = json.loads(
+        (REPO_ROOT / "packages/oracle/evidence/import-isolation-negative.json").read_text()
+    )
 
     assert report.isolated is False
     assert report.direct_forbidden_edges
     assert report.oracle_to_reconciliation_paths
     assert report.reconciliation_to_oracle_paths
+    assert report.as_dict() == negative["observed_report"]
+    with pytest.raises(ImportIsolationError):
+        enforce_isolation(report)
+
+
+def test_committed_negative_evidence_declares_fail_closed_enforcement() -> None:
+    negative = json.loads(
+        (REPO_ROOT / "packages/oracle/evidence/import-isolation-negative.json").read_text()
+    )
+    assert negative["issue"] == 12
+    assert negative["adr"] == "ADR-014"
+    assert negative["expected"]["isolated"] is False
+    assert negative["expected"]["enforcement"] == "ImportIsolationError"
+    assert set(negative["expected"]["failure_surfaces"]) == {
+        "direct_forbidden_edges",
+        "oracle_to_reconciliation_paths",
+        "reconciliation_to_oracle_paths",
+    }
 
 
 def test_import_isolation_fails_closed_on_parse_error(tmp_path: Path) -> None:

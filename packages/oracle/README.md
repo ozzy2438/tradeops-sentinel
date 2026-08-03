@@ -17,7 +17,8 @@ importing application code and fails closed on parse errors, unresolved
 internal imports, dynamic imports, or any direct/transitive path between
 `packages.oracle` and `packages.reconciliation`. The committed report is
 `evidence/import-isolation.json`; the parity traceability matrix is
-`evidence/parity-matrix.json`.
+`evidence/parity-matrix.json`; and the deliberately failing fixture output is
+`evidence/import-isolation-negative.json`.
 
 ## Scope
 

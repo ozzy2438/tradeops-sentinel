@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0.0",
+  "artifact": "TS-12-import-isolation-negative-path",
+  "issue": 12,
+  "adr": "ADR-014",
+  "expected": {
+    "isolated": false,
+    "enforcement": "ImportIsolationError",
+    "failure_surfaces": [
+      "direct_forbidden_edges",
+      "oracle_to_reconciliation_paths",
+      "reconciliation_to_oracle_paths"
+    ]
+  },
+  "fixture": {
+    "oracle_direct_edge": "packages.oracle.entry -> packages.reconciliation.engine",
+    "reconciliation_to_oracle_path": "packages.reconciliation.engine -> packages.shared.bridge -> packages.oracle.entry",
+    "purpose": "Prove that both direct and transitive forbidden edges fail closed."
+  },
+  "observed_report": {
+    "direct_forbidden_edges": [
+      ["packages.oracle.entry", "packages.reconciliation"],
+      ["packages.oracle.entry", "packages.reconciliation.engine"]
+    ],
+    "dynamic_imports": [],
+    "edges": [
+      ["packages.oracle.entry", "packages.reconciliation"],
+      ["packages.oracle.entry", "packages.reconciliation.engine"],
+      ["packages.reconciliation.engine", "packages.shared"],
+      ["packages.reconciliation.engine", "packages.shared.bridge"],
+      ["packages.shared.bridge", "packages.oracle"],
+      ["packages.shared.bridge", "packages.oracle.entry"]
+    ],
+    "isolated": false,
+    "modules": [
+      "packages",
+      "packages.oracle",
+      "packages.oracle.entry",
+      "packages.reconciliation",
+      "packages.reconciliation.engine",
+      "packages.shared",
+      "packages.shared.bridge"
+    ],
+    "oracle_prefix": "packages.oracle",
+    "oracle_to_reconciliation_paths": [
+      ["packages.oracle.entry", "packages.reconciliation"],
+      ["packages.oracle.entry", "packages.reconciliation.engine"]
+    ],
+    "parse_errors": [],
+    "reconciliation_prefix": "packages.reconciliation",
+    "reconciliation_to_oracle_paths": [
+      [
+        "packages.reconciliation.engine",
+        "packages.shared.bridge",
+        "packages.oracle"
+      ],
+      [
+        "packages.reconciliation.engine",
+        "packages.shared.bridge",
+        "packages.oracle.entry"
+      ]
+    ],
+    "schema_version": "1.0.0",
+    "unresolved_internal_imports": []
+  }
+}
