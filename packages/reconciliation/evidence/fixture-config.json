@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "config_id": "fixture_ts11_default",
+  "config_version": "1.0.0",
+  "approval_status": "FIXTURE_ONLY",
+  "effective_from": "2026-01-01T00:00:00Z",
+  "effective_to": null,
+  "arrival_windows": [
+    {"product_type": "FX_SPOT", "observation_kind": "EXECUTION", "source_system": "FIX_EXECUTION", "field_path": "/source/execution_observation", "window_seconds": 0, "rule_version": "1.0.0"},
+    {"product_type": "FX_SPOT", "observation_kind": "CONFIRMATION", "source_system": "FPML_CONFIRMATION", "field_path": "/source/confirmation_observation", "window_seconds": 0, "rule_version": "1.0.0"},
+    {"product_type": "FX_SPOT", "observation_kind": "BOOKING", "source_system": "MOCK_LEGACY_BOOKING", "field_path": "/source/booking_observation", "window_seconds": 0, "rule_version": "1.0.0"},
+    {"product_type": "FX_FORWARD", "observation_kind": "EXECUTION", "source_system": "FIX_EXECUTION", "field_path": "/source/execution_observation", "window_seconds": 0, "rule_version": "1.0.0"},
+    {"product_type": "FX_FORWARD", "observation_kind": "CONFIRMATION", "source_system": "FPML_CONFIRMATION", "field_path": "/source/confirmation_observation", "window_seconds": 0, "rule_version": "1.0.0"},
+    {"product_type": "FX_FORWARD", "observation_kind": "BOOKING", "source_system": "MOCK_LEGACY_BOOKING", "field_path": "/source/booking_observation", "window_seconds": 0, "rule_version": "1.0.0"}
+  ],
+  "decimal_tolerances": [
+    {"product_type": "FX_SPOT", "field_path": "/payload/base_amount", "tolerance": {"mode": "ABSOLUTE_DECIMAL", "value": "0.01"}, "rule_version": "1.0.0"},
+    {"product_type": "FX_SPOT", "field_path": "/payload/terms_amount", "tolerance": {"mode": "ABSOLUTE_DECIMAL", "value": "0.01"}, "rule_version": "1.0.0"},
+    {"product_type": "FX_SPOT", "field_path": "/payload/quoted_rate", "tolerance": {"mode": "ABSOLUTE_DECIMAL", "value": "0.0001"}, "rule_version": "1.0.0"},
+    {"product_type": "FX_FORWARD", "field_path": "/payload/base_amount", "tolerance": {"mode": "ABSOLUTE_DECIMAL", "value": "0.01"}, "rule_version": "1.0.0"},
+    {"product_type": "FX_FORWARD", "field_path": "/payload/terms_amount", "tolerance": {"mode": "ABSOLUTE_DECIMAL", "value": "0.01"}, "rule_version": "1.0.0"},
+    {"product_type": "FX_FORWARD", "field_path": "/payload/quoted_rate", "tolerance": {"mode": "ABSOLUTE_DECIMAL", "value": "0.0001"}, "rule_version": "1.0.0"}
+  ],
+  "normalisation_rule_version": "1.0.0",
+  "detection_rule_version": "1.0.0",
+  "lifecycle_rule_version": "1.0.0",
+  "priority_rule_version": "1.0.0",
+  "lifecycle_expected_statuses": [
+    {"observation_kind": "EXECUTION", "expected_status": "NEW", "rule_version": "1.0.0"},
+    {"observation_kind": "TRADE_CAPTURE", "expected_status": "CAPTURED", "rule_version": "1.0.0"},
+    {"observation_kind": "CONFIRMATION", "expected_status": "CONFIRMED", "rule_version": "1.0.0"},
+    {"observation_kind": "BOOKING", "expected_status": "BOOKED", "rule_version": "1.0.0"}
+  ],
+  "content_hash": "sha256:871803f9a9210fb84077d485a27fd5a647327731ea10dfb667cf5281935215ba"
+}

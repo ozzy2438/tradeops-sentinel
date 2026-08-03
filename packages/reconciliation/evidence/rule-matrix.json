@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0.0",
+  "milestone": "E5/TS-11",
+  "source": "ADR-002",
+  "scope": "MVP_SYNTHETIC_FX",
+  "families": [
+    {
+      "family": "MISSING_REQUIRED_SOURCE",
+      "condition_code": "MISSING_SOURCE_AFTER_WATERMARK",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "AMBIGUOUS_OR_UNMATCHED_LINKAGE",
+      "condition_code": "LINKAGE_CANDIDATE_SCOPE_INVARIANT",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "DUPLICATE_SOURCE_CONFLICT",
+      "condition_code": "DUPLICATE_SOURCE_IDENTITY_CONTENT",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "CURRENCY_PAIR_OR_SIDE_MISMATCH",
+      "condition_code": "EXACT_CURRENCY_PAIR_SIDE",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "ECONOMIC_VALUE_MISMATCH",
+      "condition_code": "DECIMAL_OUTSIDE_TOLERANCE",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "TRADE_OR_VALUE_DATE_MISMATCH",
+      "condition_code": "EXACT_TRADE_VALUE_DATE",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "LIFECYCLE_STATUS_MISMATCH",
+      "condition_code": "ALLOWED_LIFECYCLE_RELATION",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    },
+    {
+      "family": "POST_ACTION_VERIFICATION_FAILURE",
+      "condition_code": "POST_ACTION_READBACK_RECONCILIATION",
+      "product_coverage": ["FX_SPOT", "FX_FORWARD"],
+      "test_cases": ["positive", "boundary", "negative"]
+    }
+  ],
+  "explicit_exclusions": [
+    "TS-12 independent oracle/import isolation",
+    "TS-13 separate rerun determinism milestone",
+    "LLM/ML classification",
+    "cloud deployment",
+    "UI",
+    "RPA or booking writes",
+    "production rule activation"
+  ]
+}
