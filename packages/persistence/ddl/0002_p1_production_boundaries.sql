@@ -26,6 +26,27 @@ CREATE TRIGGER source_event_inbox_no_delete
     BEFORE DELETE ON source_event_inbox
     FOR EACH ROW EXECUTE FUNCTION reject_source_event_inbox_mutation();
 
+-- TRUNCATE does NOT fire row-level BEFORE UPDATE/DELETE triggers, so the
+-- row triggers above leave a destructive bypass: a single TRUNCATE would
+-- empty an append-only table silently, with no error and no surviving row.
+-- A statement-level BEFORE TRUNCATE trigger is the only in-database way to
+-- close that path (TRUNCATE triggers cannot be FOR EACH ROW). Both
+-- append-only tables are covered here: 0001 is already released, so the
+-- canonical table's TRUNCATE guard is added in this migration rather than
+-- by editing published migration history. It reuses the function 0001
+-- defines, which this migration is ordered after.
+DROP TRIGGER IF EXISTS source_event_inbox_no_truncate ON source_event_inbox;
+CREATE TRIGGER source_event_inbox_no_truncate
+    BEFORE TRUNCATE ON source_event_inbox
+    FOR EACH STATEMENT EXECUTE FUNCTION reject_source_event_inbox_mutation();
+
+DROP TRIGGER IF EXISTS canonical_trade_state_versions_no_truncate
+    ON canonical_trade_state_versions;
+CREATE TRIGGER canonical_trade_state_versions_no_truncate
+    BEFORE TRUNCATE ON canonical_trade_state_versions
+    FOR EACH STATEMENT
+    EXECUTE FUNCTION reject_canonical_trade_state_versions_mutation();
+
 DO $$
 DECLARE
     installed_definition TEXT;

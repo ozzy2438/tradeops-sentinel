@@ -102,6 +102,60 @@ def test_source_event_inbox_rejects_destructive_mutation(
         assert operation in {"UPDATE", "DELETE"}
 
 
+def _insert_canonical_row(connection: psycopg.Connection[dict[str, object]]) -> None:
+    connection.execute(
+        """
+        INSERT INTO canonical_trade_state_versions (
+            schema_version, trade_id, entity_version, canonical_state_version,
+            tenant_id, portfolio_id, correlation_id, content_hash, as_of_time,
+            source_watermark, source_version_set, actor, state, field_provenance
+        ) VALUES (
+            '1.0.0', 'trade_postgres_001', 1, 1,
+            'tenant_demo', 'portfolio_london', 'corr_postgres_001',
+            'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            '2026-08-03T00:00:00Z', '2026-08-03T00:00:00Z',
+            '[]'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb
+        )
+        """
+    )
+
+
+# TRUNCATE does not fire row-level BEFORE UPDATE/DELETE triggers, so an
+# append-only table guarded only by row triggers can still be emptied in one
+# statement. These two tests pin the statement-level BEFORE TRUNCATE guards
+# added in 0002 and assert the rows actually survive the attempt.
+def test_source_event_inbox_rejects_truncate() -> None:
+    with _connect() as connection:
+        _insert_source_row(connection)
+        connection.commit()
+
+        with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+            connection.execute("TRUNCATE source_event_inbox")
+        connection.rollback()
+
+        surviving = connection.execute(
+            "SELECT count(*) AS total FROM source_event_inbox"
+        ).fetchone()
+        assert surviving is not None
+        assert surviving["total"] == 1
+
+
+def test_canonical_trade_state_versions_rejects_truncate() -> None:
+    with _connect() as connection:
+        _insert_canonical_row(connection)
+        connection.commit()
+
+        with pytest.raises(psycopg.errors.RaiseException, match="append-only"):
+            connection.execute("TRUNCATE canonical_trade_state_versions")
+        connection.rollback()
+
+        surviving = connection.execute(
+            "SELECT count(*) AS total FROM canonical_trade_state_versions"
+        ).fetchone()
+        assert surviving is not None
+        assert surviving["total"] == 1
+
+
 def _trigger_names(connection: psycopg.Connection[dict[str, object]], table: str) -> list[str]:
     rows = connection.execute(
         """
@@ -148,10 +202,12 @@ def test_migration_is_reapplicable_without_weakening_append_only_triggers() -> N
         _apply_migrations(connection, MIGRATIONS)
         assert _trigger_names(connection, "source_event_inbox") == [
             "source_event_inbox_no_delete",
+            "source_event_inbox_no_truncate",
             "source_event_inbox_no_update",
         ]
         assert _trigger_names(connection, "canonical_trade_state_versions") == [
             "canonical_trade_state_versions_no_delete",
+            "canonical_trade_state_versions_no_truncate",
             "canonical_trade_state_versions_no_update",
         ]
 
@@ -178,6 +234,7 @@ def test_fresh_install_applies_all_migrations_and_creates_expected_objects() -> 
     with _connect() as connection:
         assert _trigger_names(connection, "source_event_inbox") == [
             "source_event_inbox_no_delete",
+            "source_event_inbox_no_truncate",
             "source_event_inbox_no_update",
         ]
         assert _canonical_key_constraint_def(connection) == (
@@ -210,6 +267,7 @@ def test_upgrade_from_0001_only_to_0002_migrates_legacy_schema() -> None:
 
         assert _trigger_names(connection, "source_event_inbox") == [
             "source_event_inbox_no_delete",
+            "source_event_inbox_no_truncate",
             "source_event_inbox_no_update",
         ]
         assert _canonical_key_constraint_def(connection) == (
@@ -232,10 +290,12 @@ def test_all_migrations_reapply_idempotently_over_already_migrated_schema() -> N
 
         assert _trigger_names(connection, "source_event_inbox") == [
             "source_event_inbox_no_delete",
+            "source_event_inbox_no_truncate",
             "source_event_inbox_no_update",
         ]
         assert _trigger_names(connection, "canonical_trade_state_versions") == [
             "canonical_trade_state_versions_no_delete",
+            "canonical_trade_state_versions_no_truncate",
             "canonical_trade_state_versions_no_update",
         ]
         assert _canonical_key_constraint_def(connection) == (
