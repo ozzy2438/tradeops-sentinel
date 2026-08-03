@@ -7,7 +7,16 @@ Scope (issue #10): persistence/inbox only — no reconciliation logic
 
 from __future__ import annotations
 
-from .assembler import assemble_canonical_state
+from .assembler import (
+    CanonicalAssemblyError,
+    SourceObservationSetError,
+    SourceOfTruthPolicyContentError,
+    SourceOfTruthPolicyVersionError,
+    SourceOfTruthSelectionError,
+    assemble_canonical_state,
+    load_mvp_source_of_truth_policy,
+    resolve_field_selection,
+)
 from .inbox import (
     IdentityKey,
     InboxRecord,
@@ -20,11 +29,18 @@ from .inbox import (
 
 __all__ = [
     "IdentityKey",
+    "CanonicalAssemblyError",
     "InboxRecord",
     "InboxStore",
     "IngestOutcome",
     "IngestResult",
     "SourceConflictError",
+    "SourceObservationSetError",
+    "SourceOfTruthPolicyContentError",
+    "SourceOfTruthPolicyVersionError",
+    "SourceOfTruthSelectionError",
     "assemble_canonical_state",
     "identity_key",
+    "load_mvp_source_of_truth_policy",
+    "resolve_field_selection",
 ]

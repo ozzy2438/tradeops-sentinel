@@ -2,7 +2,12 @@
 
 **Global Markets Trade-Break Automation & Regulatory Evidence Platform — reference implementation.**
 
-> **Status: Sprint 1 — E1 closed; E2 TS-3 contract slice in review.** The repository contains protected engineering governance plus the canonical FX trade/observation contract. Persistence, reconciliation, generator, LLM workflow, cloud deployment, and RPA executor implementation remain out of scope for this slice.
+> **Status: deterministic core implemented and locally/CI tested.** Contracts,
+> synthetic generation, policy-enforced canonical assembly, append-only
+> PostgreSQL DDL, reconciliation, independent oracle and packaging gates are
+> present. A transactional PostgreSQL adapter, TS-14 audit ledger, TS-15
+> release-evidence gate, application runtime, cloud deployment, LLM workflow
+> and executor remain incomplete or out of the current implemented slice.
 
 ## What this is
 
@@ -30,22 +35,47 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 ## Repository structure
 
 ```
-apps/app/              # single modular application runtime (ADR-008)
+apps/app/              # planned modular application runtime seam (README only)
 packages/contracts/    # canonical model + schemas (ADR-001/002/005) — Epic E2
 packages/generator/    # deterministic synthetic FX generator (ADR-006) — Epic E3
+packages/persistence/  # inbox semantics, SOT-enforced canonical assembly + PostgreSQL DDL
 packages/reconciliation/ # deterministic reconciliation engine (ADR-002) — Epic E5
-packages/evidence/     # hash-chain audit + evidence_verifier (ADR-012) — Epic E6
-packages/executor/     # Playwright-based legacy executor (ADR-011) — post-Sprint-1
+packages/oracle/       # independently implemented reconciliation oracle + import isolation
+packages/evidence/     # planned TS-14 hash-chain/verifier seam (README only)
+packages/executor/     # planned Playwright executor seam (README only)
 docs/adr/              # all 14 Architecture Decision Records + index
 infra/                 # Terraform for the optional cloud reference path (ADR-008 §22) — not used in Sprint 1
 tests/                 # cross-package contract/integration tests
 scripts/               # CI helper scripts (e.g. AI-authorship trailer check)
-src/tradeops_sentinel/ # placeholder package proving the CI lint/type/unit gates run on real output
+src/tradeops_sentinel/ # distribution package root
 ```
 
 ## Quickstart (local, no cloud, no paid resources)
 
-Local runtime is a single `docker-compose` stack (PostgreSQL 16 + pgvector, one application container, mock legacy booking app, Playwright executor) per ADR-008. The compose file and application code land in later Sprint-1 epics (E2–E6) — this is a placeholder pending that work.
+Python 3.11 or later is required.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+pytest -q
+ruff check .
+ruff format --check .
+mypy
+python scripts/check_wheel_install.py
+```
+
+PostgreSQL integration tests require a disposable PostgreSQL 16 database:
+
+```bash
+TRADEOPS_TEST_DATABASE_URL=postgresql://user:password@localhost/tradeops_test \
+  pytest -q tests/integration
+```
+
+The wheel check builds the deployable artifact, installs it into an isolated
+environment, imports every runtime package and loads the packaged source-of-
+truth policy. See [production-readiness boundary](docs/PRODUCTION_READINESS.md)
+for controls, branch-protection checks and remaining blockers.
 
 ## Status labels used in this repo
 

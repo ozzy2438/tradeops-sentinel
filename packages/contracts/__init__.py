@@ -16,6 +16,14 @@ from .action_models import (
     compute_action_content_hash,
     compute_idempotency_key,
 )
+from .hashing import (
+    OBSERVATION_HASH_STANDARD,
+    ObservationContentHashMismatchError,
+    canonical_observation_bytes,
+    canonical_observation_document,
+    compute_observation_content_hash,
+    validate_observation_content_hash,
+)
 from .models import (
     BookingObservation,
     CanonicalTrade,
@@ -31,6 +39,8 @@ from .models import (
 
 __all__ = [
     "BookingObservation",
+    "OBSERVATION_HASH_STANDARD",
+    "ObservationContentHashMismatchError",
     "CanonicalTrade",
     "CanonicalTradeState",
     "ConfirmationObservation",
@@ -51,7 +61,11 @@ __all__ = [
     "TradeCaptureObservation",
     "VersionReference",
     "canonical_action_payload",
+    "canonical_observation_bytes",
+    "canonical_observation_document",
     "compute_action_content_hash",
     "compute_idempotency_key",
+    "compute_observation_content_hash",
+    "validate_observation_content_hash",
     "validate_contract_document",
 ]

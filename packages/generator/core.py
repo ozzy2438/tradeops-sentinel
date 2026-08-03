@@ -18,7 +18,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from packages.contracts import validate_contract_document
+from packages.contracts import compute_observation_content_hash, validate_contract_document
 
 ProductType = Literal["FX_SPOT", "FX_FORWARD"]
 ObservationKind = Literal["EXECUTION", "TRADE_CAPTURE", "CONFIRMATION", "BOOKING"]
@@ -687,6 +687,24 @@ def _apply_mutation(
         duplicate["source_event_id"] = _opaque_identifier(
             config, "evt", "alternate", scenario_number, spec.variant_id
         )
+        # A delivery-only identifier change is a legitimate idempotent replay
+        # under canonical observation hashing.  The conflict corpus must alter
+        # actual source content while retaining the same source identity and
+        # version, so change a kind-specific payload identity that is not a
+        # canonical economics field.
+        identity_field, identity_prefix = {
+            "EXECUTION": ("execution_id", "exec"),
+            "TRADE_CAPTURE": ("capture_id", "capture"),
+            "CONFIRMATION": ("confirmation_id", "confirmation"),
+            "BOOKING": ("booking_record_id", "booking"),
+        }[spec.target_kind]
+        duplicate["payload"][identity_field] = _opaque_identifier(
+            config,
+            identity_prefix,
+            "conflict",
+            scenario_number,
+            spec.variant_id,
+        )
         if spec.late:
             duplicate["ingest_time"] = _timestamp(
                 _parse_timestamp(duplicate["ingest_time"]) + timedelta(minutes=5)
@@ -1226,8 +1244,7 @@ def _recompute_hashes(observation: dict[str, Any]) -> None:
             key: value for key, value in payload.items() if key != "record_fingerprint"
         }
         payload["record_fingerprint"] = _hash_json(fingerprint_source)
-    content_source = {key: value for key, value in observation.items() if key != "content_hash"}
-    observation["content_hash"] = _hash_json(content_source)
+    observation["content_hash"] = compute_observation_content_hash(observation)
 
 
 def _decimal_string(value: Decimal, scale: int) -> str:

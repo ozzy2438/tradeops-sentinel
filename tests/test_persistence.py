@@ -7,11 +7,15 @@ and the append-only "no destructive overwrite" acceptance criterion.
 
 from __future__ import annotations
 
-import hashlib
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from packages.contracts import (
+    ObservationContentHashMismatchError,
+    compute_observation_content_hash,
+)
 from packages.contracts.models import (
     Actor,
     ConfirmationObservation,
@@ -25,14 +29,22 @@ from packages.persistence import (
     InboxStore,
     IngestOutcome,
     SourceConflictError,
+    SourceObservationSetError,
+    SourceOfTruthPolicyContentError,
+    SourceOfTruthPolicyVersionError,
+    SourceOfTruthSelectionError,
     assemble_canonical_state,
     identity_key,
+    load_mvp_source_of_truth_policy,
+    resolve_field_selection,
 )
 from packages.persistence.assembler import CANONICAL_FIELD_NAMES
 
 
-def _content_hash(marker: str) -> str:
-    return "sha256:" + hashlib.sha256(marker.encode("utf-8")).hexdigest()
+def _with_content_hash(observation: ExecutionObservation) -> ExecutionObservation:
+    return observation.model_copy(
+        update={"content_hash": compute_observation_content_hash(observation)}
+    )
 
 
 def _execution_observation(
@@ -40,7 +52,6 @@ def _execution_observation(
     observation_id: str = "obs_execution_spot_0001",
     source_event_id: str = "evt_execution_spot_0001",
     source_version: str = "1",
-    content_marker: str = "v1",
     base_amount: str = "1000000.00",
     event_time: datetime | None = None,
     ingest_time: datetime | None = None,
@@ -50,7 +61,7 @@ def _execution_observation(
     event_time = event_time or datetime(2026, 8, 3, 9, 30, tzinfo=UTC)
     effective_time = event_time + timedelta(seconds=0)
     ingest_time = ingest_time or (event_time + timedelta(seconds=2))
-    return ExecutionObservation(
+    observation = ExecutionObservation(
         observation_id=observation_id,
         entity_version=1,
         tenant_id="tenant_demo",
@@ -59,7 +70,7 @@ def _execution_observation(
         source_event_id=source_event_id,
         source_business_key="trade_spot_0001",
         source_version=source_version,
-        content_hash=_content_hash(content_marker),
+        content_hash="sha256:" + "0" * 64,
         event_time=event_time,
         effective_time=effective_time,
         ingest_time=ingest_time,
@@ -92,17 +103,17 @@ def _execution_observation(
             order_id="order_spot_0001",
         ),
     )
+    return _with_content_hash(observation)
 
 
 def _confirmation_observation(
     *,
     observation_id: str = "obs_confirmation_spot_0001",
     source_event_id: str = "evt_confirmation_spot_0001",
-    content_marker: str = "confirmation-v1",
     event_time: datetime | None = None,
 ) -> ConfirmationObservation:
     event_time = event_time or datetime(2026, 8, 3, 9, 32, tzinfo=UTC)
-    return ConfirmationObservation(
+    observation = ConfirmationObservation(
         observation_id=observation_id,
         entity_version=1,
         tenant_id="tenant_demo",
@@ -111,7 +122,7 @@ def _confirmation_observation(
         source_event_id=source_event_id,
         source_business_key="trade_spot_0001",
         source_version="1",
-        content_hash=_content_hash(content_marker),
+        content_hash="sha256:" + "0" * 64,
         event_time=event_time,
         effective_time=event_time,
         ingest_time=event_time + timedelta(seconds=2),
@@ -141,6 +152,9 @@ def _confirmation_observation(
             confirmation_time=event_time,
             fpml_profile="fpml-style-fx-v1",
         ),
+    )
+    return observation.model_copy(
+        update={"content_hash": compute_observation_content_hash(observation)}
     )
 
 
@@ -206,12 +220,10 @@ def test_late_arrival_new_source_version_is_preserved_alongside_prior() -> None:
         observation_id="obs_execution_spot_0001_v2",
         source_event_id="evt_execution_spot_0001_v2",
         source_version="2",
-        content_marker="v2",
         event_time=datetime(2026, 8, 3, 11, 0, tzinfo=UTC),
     )
     v1_late = _execution_observation(
         source_version="1",
-        content_marker="v1",
         event_time=datetime(2026, 8, 3, 9, 30, tzinfo=UTC),
         ingest_time=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
     )
@@ -238,6 +250,8 @@ def test_late_arrival_new_source_version_is_preserved_alongside_prior() -> None:
         trade_id="trade_spot_0001",
         canonical_state_version=1,
         field_selection=_single_source_selection(v2),
+        source_observations=(v2,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=v2.correlation_id,
         actor=actor,
     )
@@ -245,6 +259,8 @@ def test_late_arrival_new_source_version_is_preserved_alongside_prior() -> None:
         trade_id="trade_spot_0001",
         canonical_state_version=2,
         field_selection=_single_source_selection(v1_late),
+        source_observations=(v1_late,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=v1_late.correlation_id,
         actor=actor,
     )
@@ -262,12 +278,11 @@ def test_linked_correction_preserves_supersession_metadata_and_prior_version() -
     separate append-only canonical versions; the correction's supersession
     metadata is retrievable, not discarded."""
     store = InboxStore()
-    original = _execution_observation(source_version="1", content_marker="v1")
+    original = _execution_observation(source_version="1")
     correction = _execution_observation(
         observation_id="obs_execution_spot_0001_correction",
         source_event_id="evt_execution_spot_0001_correction",
         source_version="2",
-        content_marker="corrected",
         base_amount="1000500.00",
         event_time=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
         supersedes_observation_id=original.observation_id,
@@ -296,6 +311,8 @@ def test_linked_correction_preserves_supersession_metadata_and_prior_version() -
         trade_id="trade_spot_0001",
         canonical_state_version=1,
         field_selection=_single_source_selection(original),
+        source_observations=(original,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=original.correlation_id,
         actor=actor,
     )
@@ -303,6 +320,8 @@ def test_linked_correction_preserves_supersession_metadata_and_prior_version() -
         trade_id="trade_spot_0001",
         canonical_state_version=2,
         field_selection=_single_source_selection(correction),
+        source_observations=(correction,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=correction.correlation_id,
         actor=actor,
     )
@@ -318,7 +337,11 @@ def test_duplicate_observation_id_with_different_content_hash_is_rejected() -> N
     flow into state/field_provenance/source_version_set -- the assembler
     rejects it deterministically before projection."""
     canonical = _execution_observation()
-    tampered = canonical.model_copy(update={"content_hash": _content_hash("tampered-variant")})
+    changed_payload = canonical.payload.model_copy(update={"book_id": "book_sydney"})
+    tampered_without_hash = canonical.model_copy(update={"payload": changed_payload})
+    tampered = tampered_without_hash.model_copy(
+        update={"content_hash": compute_observation_content_hash(tampered_without_hash)}
+    )
     actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
 
     field_selection = _single_source_selection(canonical)
@@ -329,6 +352,8 @@ def test_duplicate_observation_id_with_different_content_hash_is_rejected() -> N
             trade_id="trade_spot_0001",
             canonical_state_version=1,
             field_selection=field_selection,
+            source_observations=(canonical,),
+            source_of_truth_policy=load_mvp_source_of_truth_policy(),
             correlation_id=canonical.correlation_id,
             actor=actor,
         )
@@ -348,6 +373,8 @@ def test_duplicate_observation_id_with_same_content_hash_remains_idempotent() ->
         trade_id="trade_spot_0001",
         canonical_state_version=1,
         field_selection=field_selection,
+        source_observations=(canonical,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=canonical.correlation_id,
         actor=actor,
     )
@@ -356,13 +383,13 @@ def test_duplicate_observation_id_with_same_content_hash_remains_idempotent() ->
 
 def test_same_identity_version_different_content_raises_duplicate_source_conflict() -> None:
     store = InboxStore()
-    original = _execution_observation(content_marker="v1")
+    original = _execution_observation()
     store.ingest(original)
 
     conflicting = _execution_observation(
         observation_id="obs_execution_spot_0001_conflict",
         source_event_id="evt_execution_spot_0001_conflict",
-        content_marker="v1-tampered",
+        base_amount="1000500.00",
     )
 
     with pytest.raises(SourceConflictError) as excinfo:
@@ -393,6 +420,8 @@ def test_assemble_canonical_state_builds_valid_versioned_projection() -> None:
         trade_id="trade_spot_0001",
         canonical_state_version=1,
         field_selection=_single_source_selection(observation),
+        source_observations=(observation,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=observation.correlation_id,
         actor=actor,
     )
@@ -409,7 +438,8 @@ def test_assemble_canonical_state_builds_valid_versioned_projection() -> None:
     for field_name in CANONICAL_FIELD_NAMES:
         provenance = getattr(state.field_provenance, field_name)
         assert provenance.source_observation_id == observation.observation_id
-        assert provenance.conflict_status == "SELECTED"
+        expected_status = "SECONDARY_SUPPORTING" if field_name == "lifecycle_status" else "SELECTED"
+        assert provenance.conflict_status == expected_status
 
 
 def test_assemble_canonical_state_respects_explicit_per_field_authority() -> None:
@@ -430,6 +460,8 @@ def test_assemble_canonical_state_respects_explicit_per_field_authority() -> Non
         trade_id="trade_spot_0001",
         canonical_state_version=1,
         field_selection=field_selection,
+        source_observations=(execution, confirmation),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=execution.correlation_id,
         actor=actor,
     )
@@ -448,6 +480,182 @@ def test_assemble_canonical_state_respects_explicit_per_field_authority() -> Non
     assert contributing_ids == {execution.observation_id, confirmation.observation_id}
 
 
+def test_source_of_truth_rejects_non_authoritative_economic_selection() -> None:
+    execution = _execution_observation()
+    confirmation = _confirmation_observation()
+    policy = load_mvp_source_of_truth_policy()
+    selection = resolve_field_selection(
+        trade_id="trade_spot_0001",
+        source_observations=(execution, confirmation),
+        source_of_truth_policy=policy,
+    )
+    selection["base_amount"] = confirmation
+
+    with pytest.raises(SourceOfTruthSelectionError, match="base_amount"):
+        assemble_canonical_state(
+            trade_id="trade_spot_0001",
+            canonical_state_version=1,
+            field_selection=selection,
+            source_observations=(execution, confirmation),
+            source_of_truth_policy=policy,
+            correlation_id=execution.correlation_id,
+            actor=Actor(identity_type="SYSTEM", actor_id="canonical_assembler"),
+        )
+
+
+def test_full_source_set_is_distinct_from_selected_authoritative_sources() -> None:
+    prior_execution = _execution_observation()
+    execution = _execution_observation(
+        observation_id="obs_execution_spot_0001_v2",
+        source_event_id="evt_execution_spot_0001_v2",
+        source_version="2",
+    )
+    confirmation = _confirmation_observation()
+    policy = load_mvp_source_of_truth_policy()
+    selection = resolve_field_selection(
+        trade_id="trade_spot_0001",
+        source_observations=(confirmation, prior_execution, execution),
+        source_of_truth_policy=policy,
+    )
+
+    state = assemble_canonical_state(
+        trade_id="trade_spot_0001",
+        canonical_state_version=1,
+        field_selection=selection,
+        source_observations=(confirmation, prior_execution, execution),
+        source_of_truth_policy=policy,
+        correlation_id=execution.correlation_id,
+        actor=Actor(identity_type="SYSTEM", actor_id="canonical_assembler"),
+    )
+
+    assert state.field_provenance.base_amount.source_observation_id == execution.observation_id
+    assert state.field_provenance.lifecycle_status.source_observation_id == (
+        confirmation.observation_id
+    )
+    assert {item.observation_id for item in state.source_version_set} == {
+        execution.observation_id,
+        prior_execution.observation_id,
+        confirmation.observation_id,
+    }
+    assert prior_execution.observation_id not in {
+        observation.observation_id for observation in selection.values()
+    }
+
+
+def test_source_set_rejects_cross_portfolio_observation() -> None:
+    execution = _execution_observation()
+    confirmation = _confirmation_observation()
+    moved = confirmation.model_copy(update={"portfolio_id": "portfolio_sydney"})
+    moved = moved.model_copy(update={"content_hash": compute_observation_content_hash(moved)})
+    policy = load_mvp_source_of_truth_policy()
+
+    with pytest.raises(SourceObservationSetError, match="tenant/portfolio/correlation"):
+        resolve_field_selection(
+            trade_id="trade_spot_0001",
+            source_observations=(execution, moved),
+            source_of_truth_policy=policy,
+        )
+
+
+def test_unsupported_source_of_truth_policy_version_fails_closed() -> None:
+    observation = _execution_observation()
+    unsupported = load_mvp_source_of_truth_policy().model_copy(update={"policy_version": "2.0.0"})
+
+    with pytest.raises(SourceOfTruthPolicyVersionError, match="unsupported"):
+        resolve_field_selection(
+            trade_id="trade_spot_0001",
+            source_observations=(observation,),
+            source_of_truth_policy=unsupported,
+        )
+
+
+def test_same_version_source_of_truth_policy_tampering_fails_closed() -> None:
+    observation = _execution_observation()
+    policy = load_mvp_source_of_truth_policy()
+    first_rule = policy.field_rules[0].model_copy(
+        update={"source_precedence": list(reversed(policy.field_rules[0].source_precedence))}
+    )
+    tampered = policy.model_copy(update={"field_rules": [first_rule, *policy.field_rules[1:]]})
+
+    with pytest.raises(SourceOfTruthPolicyContentError, match="approved policy"):
+        resolve_field_selection(
+            trade_id="trade_spot_0001",
+            source_observations=(observation,),
+            source_of_truth_policy=tampered,
+        )
+
+
+def test_forged_same_hash_cannot_hide_a_changed_payload() -> None:
+    store = InboxStore()
+    original = _execution_observation()
+    store.ingest(original)
+    changed_payload = original.payload.model_copy(
+        update={"base_amount": DecimalAmount(currency="EUR", value="1000500.00", scale=2)}
+    )
+    forged = original.model_copy(
+        update={
+            "observation_id": "obs_execution_spot_0001_forged",
+            "source_event_id": "evt_execution_spot_0001_forged",
+            "payload": changed_payload,
+            "content_hash": original.content_hash,
+        }
+    )
+
+    with pytest.raises(ObservationContentHashMismatchError, match="canonical content"):
+        store.ingest(forged)
+    assert len(store.all_records()) == 1
+
+
+def test_forged_selected_observation_cannot_bypass_policy_resolution() -> None:
+    original = _execution_observation()
+    policy = load_mvp_source_of_truth_policy()
+    selection = resolve_field_selection(
+        trade_id="trade_spot_0001",
+        source_observations=(original,),
+        source_of_truth_policy=policy,
+    )
+    changed_payload = original.payload.model_copy(
+        update={"base_amount": DecimalAmount(currency="EUR", value="1000500.00", scale=2)}
+    )
+    selection["base_amount"] = original.model_copy(update={"payload": changed_payload})
+
+    with pytest.raises(ObservationContentHashMismatchError, match="canonical content"):
+        assemble_canonical_state(
+            trade_id="trade_spot_0001",
+            canonical_state_version=1,
+            field_selection=selection,
+            source_observations=(original,),
+            source_of_truth_policy=policy,
+            correlation_id=original.correlation_id,
+            actor=Actor(identity_type="SYSTEM", actor_id="canonical_assembler"),
+        )
+
+
+def test_observation_hash_is_key_order_independent_and_normalises_utc_offsets() -> None:
+    observation = _execution_observation()
+    document = observation.model_dump(mode="json")
+    equivalent = deepcopy(document)
+    equivalent["event_time"] = "2026-08-03T19:30:00+10:00"
+    equivalent["effective_time"] = "2026-08-03T19:30:00+10:00"
+    equivalent["payload"]["execution_time"] = "2026-08-03T19:30:00+10:00"
+    equivalent["payload"] = dict(reversed(equivalent["payload"].items()))
+    equivalent = dict(reversed(equivalent.items()))
+
+    assert compute_observation_content_hash(document) == compute_observation_content_hash(
+        equivalent
+    )
+
+
+def test_observation_hash_preserves_declared_decimal_representation() -> None:
+    original = _execution_observation()
+    changed_payload = original.payload.model_copy(
+        update={"base_amount": DecimalAmount(currency="EUR", value="1000000.01", scale=2)}
+    )
+    changed = original.model_copy(update={"payload": changed_payload})
+
+    assert compute_observation_content_hash(original) != compute_observation_content_hash(changed)
+
+
 def test_assemble_canonical_state_requires_a_complete_field_selection() -> None:
     execution = _execution_observation()
     actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
@@ -459,6 +667,8 @@ def test_assemble_canonical_state_requires_a_complete_field_selection() -> None:
             trade_id="trade_spot_0001",
             canonical_state_version=1,
             field_selection=incomplete_selection,
+            source_observations=(execution,),
+            source_of_truth_policy=load_mvp_source_of_truth_policy(),
             correlation_id=execution.correlation_id,
             actor=actor,
         )
@@ -478,6 +688,8 @@ def test_assemble_canonical_state_rejects_unrecognised_extra_field_keys() -> Non
             trade_id="trade_spot_0001",
             canonical_state_version=1,
             field_selection=selection_with_extra_key,
+            source_observations=(execution,),
+            source_of_truth_policy=load_mvp_source_of_truth_policy(),
             correlation_id=execution.correlation_id,
             actor=actor,
         )
@@ -494,6 +706,8 @@ def test_versions_are_append_only_no_destructive_overwrite() -> None:
         trade_id="trade_spot_0001",
         canonical_state_version=1,
         field_selection=_single_source_selection(v1_observation),
+        source_observations=(v1_observation,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=v1_observation.correlation_id,
         actor=actor,
     )
@@ -503,7 +717,6 @@ def test_versions_are_append_only_no_destructive_overwrite() -> None:
         observation_id="obs_execution_spot_0001_correction",
         source_event_id="evt_execution_spot_0001_correction",
         source_version="2",
-        content_marker="corrected",
         base_amount="1000500.00",
         event_time=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
     )
@@ -511,6 +724,8 @@ def test_versions_are_append_only_no_destructive_overwrite() -> None:
         trade_id="trade_spot_0001",
         canonical_state_version=2,
         field_selection=_single_source_selection(v2_observation),
+        source_observations=(v2_observation,),
+        source_of_truth_policy=load_mvp_source_of_truth_policy(),
         correlation_id=v2_observation.correlation_id,
         actor=actor,
     )

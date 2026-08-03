@@ -4,14 +4,16 @@ version = "0.1.0"
 description = "TradeOps Sentinel — Global Markets Trade-Break Automation & Regulatory Evidence Platform (reference implementation, synthetic data only)"
 requires-python = ">=3.11"
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 dependencies = ["pydantic>=2.8"]
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2",
     "jsonschema>=4.23",
     "ruff>=0.6",
     "mypy>=1.11",
+    "psycopg[binary]>=3.2",
     "pytest>=8.0",
 ]
 
@@ -44,4 +46,12 @@ requires = ["setuptools>=83.0.0"]  # >=83.0.0 required: fixes PYSEC-2026-3447
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["tradeops_sentinel*", "packages*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"packages.contracts" = ["schemas/*.json", "examples/**/*.json"]
+"packages.oracle" = ["evidence/*.json"]
+"packages.persistence" = ["ddl/*.sql"]
+"packages.reconciliation" = ["evidence/*.json"]
