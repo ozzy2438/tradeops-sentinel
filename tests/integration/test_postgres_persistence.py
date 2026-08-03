@@ -21,7 +21,8 @@ pytestmark = pytest.mark.skipif(
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-MIGRATION = ROOT / "packages/persistence/ddl/0001_canonical_persistence.sql"
+DDL_DIR = ROOT / "packages/persistence/ddl"
+MIGRATIONS = sorted(DDL_DIR.glob("*.sql"))
 
 
 def _connect() -> psycopg.Connection[dict[str, object]]:
@@ -29,12 +30,19 @@ def _connect() -> psycopg.Connection[dict[str, object]]:
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
 
+def _apply_migrations(
+    connection: psycopg.Connection[dict[str, object]], migrations: list[Path]
+) -> None:
+    for migration in migrations:
+        connection.execute(migration.read_text(encoding="utf-8"))
+
+
 @pytest.fixture(autouse=True)
 def fresh_schema() -> None:
     with _connect() as connection:
         connection.execute("DROP SCHEMA public CASCADE")
         connection.execute("CREATE SCHEMA public")
-        connection.execute(MIGRATION.read_text(encoding="utf-8"))
+        _apply_migrations(connection, MIGRATIONS)
 
 
 def _insert_source_row(connection: psycopg.Connection[dict[str, object]]) -> int:
@@ -94,21 +102,57 @@ def test_source_event_inbox_rejects_destructive_mutation(
         assert operation in {"UPDATE", "DELETE"}
 
 
+def _trigger_names(connection: psycopg.Connection[dict[str, object]], table: str) -> list[str]:
+    rows = connection.execute(
+        """
+        SELECT tgname
+        FROM pg_trigger
+        WHERE tgrelid = %s::regclass
+          AND NOT tgisinternal
+        ORDER BY tgname
+        """,
+        (table,),
+    ).fetchall()
+    return [str(row["tgname"]) for row in rows]
+
+
+def _canonical_key_constraint_def(
+    connection: psycopg.Connection[dict[str, object]],
+) -> str | None:
+    row = connection.execute(
+        """
+        SELECT pg_get_constraintdef(oid) AS definition
+        FROM pg_constraint
+        WHERE conrelid = 'canonical_trade_state_versions'::regclass
+          AND conname = 'canonical_trade_state_versions_trade_version_key'
+        """
+    ).fetchone()
+    return None if row is None else str(row["definition"])
+
+
+def _canonical_current_index_def(
+    connection: psycopg.Connection[dict[str, object]],
+) -> str | None:
+    row = connection.execute(
+        sql.SQL(
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' "
+            "AND tablename = 'canonical_trade_state_versions' "
+            "AND indexname = 'canonical_trade_state_versions_current_idx'"
+        )
+    ).fetchone()
+    return None if row is None else str(row["indexdef"])
+
+
 def test_migration_is_reapplicable_without_weakening_append_only_triggers() -> None:
     with _connect() as connection:
-        connection.execute(MIGRATION.read_text(encoding="utf-8"))
-        trigger_rows = connection.execute(
-            """
-            SELECT tgname
-            FROM pg_trigger
-            WHERE tgrelid = 'source_event_inbox'::regclass
-              AND NOT tgisinternal
-            ORDER BY tgname
-            """
-        ).fetchall()
-        assert [row["tgname"] for row in trigger_rows] == [
+        _apply_migrations(connection, MIGRATIONS)
+        assert _trigger_names(connection, "source_event_inbox") == [
             "source_event_inbox_no_delete",
             "source_event_inbox_no_update",
+        ]
+        assert _trigger_names(connection, "canonical_trade_state_versions") == [
+            "canonical_trade_state_versions_no_delete",
+            "canonical_trade_state_versions_no_update",
         ]
 
 
@@ -124,3 +168,79 @@ def test_canonical_scope_index_includes_portfolio() -> None:
         "(tenant_id, portfolio_id, trade_id, canonical_state_version" in str(row["indexdef"])
         for row in indexes
     )
+
+
+def test_fresh_install_applies_all_migrations_and_creates_expected_objects() -> None:
+    # The autouse fresh_schema fixture already ran every migration in
+    # packages/persistence/ddl against an empty schema; this asserts that a
+    # single from-scratch install lands directly on the fully-migrated
+    # (0002) shape, not the legacy 0001-only shape.
+    with _connect() as connection:
+        assert _trigger_names(connection, "source_event_inbox") == [
+            "source_event_inbox_no_delete",
+            "source_event_inbox_no_update",
+        ]
+        assert _canonical_key_constraint_def(connection) == (
+            "UNIQUE (tenant_id, portfolio_id, trade_id, canonical_state_version)"
+        )
+        index_definition = _canonical_current_index_def(connection)
+        assert index_definition is not None
+        assert "(tenant_id, portfolio_id, trade_id, canonical_state_version" in index_definition
+
+
+def test_upgrade_from_0001_only_to_0002_migrates_legacy_schema() -> None:
+    migration_0001 = DDL_DIR / "0001_canonical_persistence.sql"
+    migration_0002 = DDL_DIR / "0002_p1_production_boundaries.sql"
+    with _connect() as connection:
+        # Roll back to a pre-P1 (0001-only) database to prove 0002 upgrades
+        # it in place, rather than only working on a fresh install.
+        connection.execute("DROP SCHEMA public CASCADE")
+        connection.execute("CREATE SCHEMA public")
+        connection.execute(migration_0001.read_text(encoding="utf-8"))
+
+        assert _trigger_names(connection, "source_event_inbox") == []
+        assert _canonical_key_constraint_def(connection) == (
+            "UNIQUE (tenant_id, trade_id, canonical_state_version)"
+        )
+        legacy_index_definition = _canonical_current_index_def(connection)
+        assert legacy_index_definition is not None
+        assert "(tenant_id, portfolio_id," not in legacy_index_definition
+
+        connection.execute(migration_0002.read_text(encoding="utf-8"))
+
+        assert _trigger_names(connection, "source_event_inbox") == [
+            "source_event_inbox_no_delete",
+            "source_event_inbox_no_update",
+        ]
+        assert _canonical_key_constraint_def(connection) == (
+            "UNIQUE (tenant_id, portfolio_id, trade_id, canonical_state_version)"
+        )
+        upgraded_index_definition = _canonical_current_index_def(connection)
+        assert upgraded_index_definition is not None
+        assert "(tenant_id, portfolio_id, trade_id, canonical_state_version" in (
+            upgraded_index_definition
+        )
+
+
+def test_all_migrations_reapply_idempotently_over_already_migrated_schema() -> None:
+    with _connect() as connection:
+        # fresh_schema already applied every migration once; apply the full
+        # sequence a second time on top and confirm state is unchanged, not
+        # duplicated (extra triggers, weakened constraints, stale indexes).
+        _apply_migrations(connection, MIGRATIONS)
+        _apply_migrations(connection, MIGRATIONS)
+
+        assert _trigger_names(connection, "source_event_inbox") == [
+            "source_event_inbox_no_delete",
+            "source_event_inbox_no_update",
+        ]
+        assert _trigger_names(connection, "canonical_trade_state_versions") == [
+            "canonical_trade_state_versions_no_delete",
+            "canonical_trade_state_versions_no_update",
+        ]
+        assert _canonical_key_constraint_def(connection) == (
+            "UNIQUE (tenant_id, portfolio_id, trade_id, canonical_state_version)"
+        )
+        index_definition = _canonical_current_index_def(connection)
+        assert index_definition is not None
+        assert "(tenant_id, portfolio_id, trade_id, canonical_state_version" in index_definition
