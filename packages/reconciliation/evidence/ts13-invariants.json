@@ -54,9 +54,11 @@
     "diff_check": {"command": "git diff --check", "result": "PASS"}
   },
   "genuine_ci": {
-    "status": "PENDING",
-    "run_id": null,
-    "head_sha": null,
+    "status": "SUCCESS",
+    "run_id": 30801681944,
+    "head_sha": "e24e28c271955307ca12f712b786b47dbb42fc89",
+    "conclusion": "success",
+    "evidence_note": "This run validates the implementation/evidence parent; the final evidence-only child is independently checked at its exact head.",
     "disabled_jobs": "skipped and not counted"
   },
   "evidence_files": {
