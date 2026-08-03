@@ -1,0 +1,125 @@
+{
+  "direct_forbidden_edges": [],
+  "dynamic_imports": [],
+  "edges": [
+    [
+      "packages.contracts",
+      "packages.contracts.action_models"
+    ],
+    [
+      "packages.contracts",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.contracts.action_models",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.contracts.models",
+      "packages.contracts.action_models"
+    ],
+    [
+      "packages.generator",
+      "packages.generator.core"
+    ],
+    [
+      "packages.generator.core",
+      "packages.contracts"
+    ],
+    [
+      "packages.oracle",
+      "packages.oracle.evaluator"
+    ],
+    [
+      "packages.oracle",
+      "packages.oracle.import_graph"
+    ],
+    [
+      "packages.oracle",
+      "packages.oracle.models"
+    ],
+    [
+      "packages.oracle.evaluator",
+      "packages.oracle.models"
+    ],
+    [
+      "packages.oracle.models",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.persistence",
+      "packages.persistence.assembler"
+    ],
+    [
+      "packages.persistence",
+      "packages.persistence.inbox"
+    ],
+    [
+      "packages.persistence.assembler",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.persistence.inbox",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.reconciliation",
+      "packages.reconciliation.config"
+    ],
+    [
+      "packages.reconciliation",
+      "packages.reconciliation.engine"
+    ],
+    [
+      "packages.reconciliation",
+      "packages.reconciliation.models"
+    ],
+    [
+      "packages.reconciliation.config",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.reconciliation.engine",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.reconciliation.engine",
+      "packages.reconciliation.config"
+    ],
+    [
+      "packages.reconciliation.engine",
+      "packages.reconciliation.models"
+    ],
+    [
+      "packages.reconciliation.models",
+      "packages.contracts.models"
+    ]
+  ],
+  "isolated": true,
+  "modules": [
+    "packages",
+    "packages.contracts",
+    "packages.contracts.action_models",
+    "packages.contracts.models",
+    "packages.generator",
+    "packages.generator.core",
+    "packages.oracle",
+    "packages.oracle.evaluator",
+    "packages.oracle.import_graph",
+    "packages.oracle.models",
+    "packages.persistence",
+    "packages.persistence.assembler",
+    "packages.persistence.inbox",
+    "packages.reconciliation",
+    "packages.reconciliation.config",
+    "packages.reconciliation.engine",
+    "packages.reconciliation.models"
+  ],
+  "oracle_prefix": "packages.oracle",
+  "oracle_to_reconciliation_paths": [],
+  "parse_errors": [],
+  "reconciliation_prefix": "packages.reconciliation",
+  "reconciliation_to_oracle_paths": [],
+  "schema_version": "1.0.0",
+  "unresolved_internal_imports": []
+}
