@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "artifact": "TS-13-invariants",
+  "issue": 13,
+  "charter_definition_of_done": "§31",
+  "base_main_merge": "e7610d003daf2faa6bae067b2468657bc93cf95c",
+  "scope": [
+    "rerun determinism on locked source/canonical inputs",
+    "duplicate-event replay invariants",
+    "DUPLICATE_SOURCE_CONFLICT duplicate/conflict semantics"
+  ],
+  "locked_inputs": {
+    "generator_version": "1.0.0",
+    "seed": 20260802,
+    "scenario_count": 144,
+    "lineage_group_count": 144,
+    "source_observation_count": 582,
+    "config_hash": "sha256:8e8587a535dc49567b9caca82cd1b7d43a0b1f50bb1547f0691ffe414775c329",
+    "source_fixture_hash": "sha256:54f008bfb1634c135741868a2a3b5a9b2c01a688270ff9526911540c296a71a7"
+  },
+  "rerun_determinism": {
+    "lineage_groups": 144,
+    "identical_replays": 144,
+    "source_order_permutations": 144,
+    "duplicate_break_ids": 0
+  },
+  "duplicate_conflict": {
+    "expected_groups": 12,
+    "observed_groups": 12,
+    "reconciliation_breaks_per_group": 1,
+    "conflicting_delivery_inserted": false
+  },
+  "duplicate_event": {
+    "replay_delivery_identity_changes": true,
+    "replay_outcome": "IDEMPOTENT_REPLAY",
+    "replay_semantic_records": 1,
+    "conflict_exception": "SourceConflictError",
+    "conflict_existing_records_preserved": true
+  },
+  "case_layer": {
+    "status": "not_present_in_ts13_baseline",
+    "duplicate_case_writes": 0,
+    "note": "TS-13 proves unique deterministic reconciliation results; no exception-case writer exists in the protected-main baseline."
+  },
+  "local_validation": {
+    "pytest": {"command": "pytest -q", "result": "PENDING"},
+    "ruff_check": {"command": "ruff check .", "result": "PENDING"},
+    "ruff_format": {"command": "ruff format --check .", "result": "PENDING"},
+    "mypy": {"command": "mypy", "result": "PENDING"},
+    "compile": {"command": "python -m compileall -q packages scripts tests", "result": "PENDING"}
+  },
+  "genuine_ci": {
+    "status": "PENDING",
+    "run_id": null,
+    "head_sha": null,
+    "disabled_jobs": "skipped and not counted"
+  },
+  "evidence_files": {
+    "tests": "tests/test_ts13.py",
+    "summary": "packages/reconciliation/evidence/ts13-invariants.json"
+  },
+  "explicit_exclusions": [
+    "TS-12 oracle/import isolation",
+    "TS-14 audit hash-chain",
+    "TS-15 release manifest completeness",
+    "generator expansion",
+    "UI",
+    "cloud",
+    "ML",
+    "RPA",
+    "deployment",
+    "production writes",
+    "unrelated refactoring"
+  ]
+}
