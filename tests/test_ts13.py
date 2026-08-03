@@ -269,3 +269,9 @@ def test_committed_ts13_evidence_matches_locked_input_manifest() -> None:
     assert summary["evidence_files"]["summary"] == (
         "packages/reconciliation/evidence/ts13-invariants.json"
     )
+    assert summary["local_validation"]["pytest"] == {
+        "command": "pytest -q",
+        "result": "PASS",
+        "tests": 240,
+    }
+    assert summary["local_validation"]["mypy"]["source_files"] == 24
