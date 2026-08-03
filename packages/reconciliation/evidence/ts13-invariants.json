@@ -4,6 +4,9 @@
   "issue": 13,
   "charter_definition_of_done": "§31",
   "base_main_merge": "e7610d003daf2faa6bae067b2468657bc93cf95c",
+  "implementation_commit_sha": "0f7128fa214922ec590ade81f8d10dfaa473eac4",
+  "evidence_commit_parent_sha": "0f7128fa214922ec590ade81f8d10dfaa473eac4",
+  "evidence_scope": "This artifact records the scoped TS-13 invariant harness and its reproducible local results; the genuine CI fields are updated only after the exact implementation lineage is independently read back.",
   "scope": [
     "rerun determinism on locked source/canonical inputs",
     "duplicate-event replay invariants",
@@ -43,11 +46,12 @@
     "note": "TS-13 proves unique deterministic reconciliation results; no exception-case writer exists in the protected-main baseline."
   },
   "local_validation": {
-    "pytest": {"command": "pytest -q", "result": "PENDING"},
-    "ruff_check": {"command": "ruff check .", "result": "PENDING"},
-    "ruff_format": {"command": "ruff format --check .", "result": "PENDING"},
-    "mypy": {"command": "mypy", "result": "PENDING"},
-    "compile": {"command": "python -m compileall -q packages scripts tests", "result": "PENDING"}
+    "pytest": {"command": "pytest -q", "result": "PASS", "tests": 240},
+    "ruff_check": {"command": "ruff check .", "result": "PASS"},
+    "ruff_format": {"command": "ruff format --check .", "result": "PASS"},
+    "mypy": {"command": "mypy", "result": "PASS", "source_files": 24},
+    "compile": {"command": "python -m compileall -q packages scripts tests", "result": "PASS"},
+    "diff_check": {"command": "git diff --check", "result": "PASS"}
   },
   "genuine_ci": {
     "status": "PENDING",
