@@ -207,18 +207,45 @@ def _resolve_absolute(candidate: str, modules: set[str]) -> str | None:
 
 def _dynamic_imports(tree: ast.AST, module: str) -> list[str]:
     findings: list[str] = []
+    importlib_module_aliases = {"importlib"}
+    # Reject the conventional callable name even when an import statement is
+    # omitted or hidden from this module-level alias scan; false positives are
+    # safer than allowing a dynamic-import bypass at this boundary.
+    import_module_aliases = {"import_module"}
+    import_builtin_aliases = {"__import__"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "importlib":
+                    importlib_module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "importlib":
+                for alias in node.names:
+                    if alias.name == "import_module":
+                        import_module_aliases.add(alias.asname or alias.name)
+            elif node.module == "builtins":
+                for alias in node.names:
+                    if alias.name == "__import__":
+                        import_builtin_aliases.add(alias.asname or alias.name)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         if isinstance(node.func, ast.Name) and node.func.id == "__import__":
             findings.append(f"{module}: __import__")
+        elif isinstance(node.func, ast.Name) and node.func.id in import_builtin_aliases:
+            findings.append(f"{module}: __import__ (alias: {node.func.id})")
+        elif isinstance(node.func, ast.Name) and node.func.id in import_module_aliases:
+            findings.append(f"{module}: importlib.import_module (alias: {node.func.id})")
         elif (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "import_module"
             and isinstance(node.func.value, ast.Name)
-            and node.func.value.id == "importlib"
+            and node.func.value.id in importlib_module_aliases
         ):
-            findings.append(f"{module}: importlib.import_module")
+            if node.func.value.id == "importlib":
+                findings.append(f"{module}: importlib.import_module")
+            else:
+                findings.append(f"{module}: importlib.import_module (alias: {node.func.value.id})")
     return findings
 
 

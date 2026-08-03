@@ -448,6 +448,32 @@ def test_import_isolation_fails_closed_on_parse_error(tmp_path: Path) -> None:
     assert report.parse_errors
 
 
+def test_import_isolation_fails_closed_on_importlib_aliases(tmp_path: Path) -> None:
+    packages = tmp_path / "packages"
+    (packages / "oracle").mkdir(parents=True)
+    (packages / "reconciliation").mkdir()
+    for package in (packages, packages / "oracle", packages / "reconciliation"):
+        (package / "__init__.py").write_text("", encoding="utf-8")
+    (packages / "oracle" / "entry.py").write_text(
+        "from importlib import import_module\n"
+        "import importlib as il\n"
+        'import_module("packages.reconciliation.engine")\n'
+        'il.import_module("packages.reconciliation.engine")\n',
+        encoding="utf-8",
+    )
+
+    report = scan_repository(tmp_path)
+    negative = json.loads(
+        (REPO_ROOT / "packages/oracle/evidence/import-isolation-dynamic-negative.json").read_text()
+    )
+
+    assert report.isolated is False
+    assert report.as_dict() == negative["observed_report"]
+    assert report.dynamic_imports
+    with pytest.raises(ImportIsolationError):
+        enforce_isolation(report)
+
+
 def test_committed_parity_matrix_declares_ts12_traceability() -> None:
     matrix = json.loads((REPO_ROOT / "packages/oracle/evidence/parity-matrix.json").read_text())
     assert matrix["issue"] == 12
@@ -476,4 +502,9 @@ def test_committed_validation_summary_contains_ts12_evidence() -> None:
     assert summary["genuine_ci"]["head_sha"] == summary["implementation_commit_sha"]
     assert summary["genuine_ci"]["conclusion"] == "success"
     assert summary["import_isolation"]["negative_enforcement"] == "ImportIsolationError"
+    assert summary["import_isolation"]["dynamic_alias_negative_cases"] == 2
+    assert summary["import_isolation"]["dynamic_alias_enforcement"] == "ImportIsolationError"
+    assert summary["evidence_files"]["dynamic_import_negative_path"].endswith(
+        "import-isolation-dynamic-negative.json"
+    )
     assert summary["evidence_commit_parent_sha"] == summary["implementation_commit_sha"]

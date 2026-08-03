@@ -9,10 +9,13 @@
   "implementation_commit_sha": "c498445d8e5e24ee369ff9a4c982834594854674",
   "evidence_commit_parent_sha": "c498445d8e5e24ee369ff9a4c982834594854674",
   "evidence_scope": "This summary records validation of the implementation commit; its containing commit adds only evidence and an assertion that the summary is traceable.",
+  "repair_parent_sha": "abde5a077acbcc742452ef7894129ac4c3e790ea",
+  "repair_scope": "TS12-ISO-01 alias-aware dynamic-import detection and negative evidence only.",
   "evidence_files": {
     "dependency_graph": "packages/oracle/evidence/import-isolation.json",
     "parity_matrix": "packages/oracle/evidence/parity-matrix.json",
-    "negative_path": "packages/oracle/evidence/import-isolation-negative.json"
+    "negative_path": "packages/oracle/evidence/import-isolation-negative.json",
+    "dynamic_import_negative_path": "packages/oracle/evidence/import-isolation-dynamic-negative.json"
   },
   "local_validation": {
     "pytest": {"command": "pytest -q", "result": "PASS", "tests": 235},
@@ -31,7 +34,9 @@
     "parse_errors": 0,
     "unresolved_internal_imports": 0,
     "dynamic_imports": 0,
-    "negative_enforcement": "ImportIsolationError"
+    "negative_enforcement": "ImportIsolationError",
+    "dynamic_alias_negative_cases": 2,
+    "dynamic_alias_enforcement": "ImportIsolationError"
   },
   "genuine_ci": {
     "run_id": 30791751904,
