@@ -458,3 +458,22 @@ def test_committed_parity_matrix_declares_ts12_traceability() -> None:
     assert {
         row["expected_families"][0] for row in matrix["rows"] if row["expected_families"]
     } == set(_FAMILIES)
+
+
+def test_committed_validation_summary_contains_ts12_evidence() -> None:
+    summary = json.loads(
+        (REPO_ROOT / "packages/oracle/evidence/validation-summary.json").read_text()
+    )
+    assert summary["issue"] == 12
+    assert summary["adr"] == "ADR-014"
+    assert summary["implementation_commit_sha"] == ("c498445d8e5e24ee369ff9a4c982834594854674")
+    assert summary["local_validation"]["pytest"] == {
+        "command": "pytest -q",
+        "result": "PASS",
+        "tests": 235,
+    }
+    assert summary["genuine_ci"]["run_id"] == 30791751904
+    assert summary["genuine_ci"]["head_sha"] == summary["implementation_commit_sha"]
+    assert summary["genuine_ci"]["conclusion"] == "success"
+    assert summary["import_isolation"]["negative_enforcement"] == "ImportIsolationError"
+    assert summary["evidence_commit_parent_sha"] == summary["implementation_commit_sha"]

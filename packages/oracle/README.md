@@ -18,7 +18,8 @@ internal imports, dynamic imports, or any direct/transitive path between
 `packages.oracle` and `packages.reconciliation`. The committed report is
 `evidence/import-isolation.json`; the parity traceability matrix is
 `evidence/parity-matrix.json`; and the deliberately failing fixture output is
-`evidence/import-isolation-negative.json`.
+`evidence/import-isolation-negative.json`. The exact local/CI validation record
+is `evidence/validation-summary.json`.
 
 ## Scope
 
