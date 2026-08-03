@@ -33,8 +33,12 @@ transactional psycopg adapter.
   in `source_version_set` for conflict/missing-source reconciliation.
 - `hashing.py` in `packages/contracts` — defines the versioned canonical
   observation hash used at ingress. Delivery-only IDs/times are excluded;
-  semantic fields, timestamps, decimal strings and JSON key ordering are
-  canonicalised before SHA-256 validation.
+  semantic fields, timestamps and JSON key ordering are canonicalised before
+  SHA-256 validation. Decimal strings are *not* canonicalised by the hash —
+  they are validated to a pinned scale by `DecimalAmount`/`DecimalRate`, whose
+  `scale_matches_value` validator requires exactly the declared number of
+  fractional digits, so a contract-valid amount has one representation for a
+  given scale.
 
 ## Consistency item C-09 — identity vs. delivery
 

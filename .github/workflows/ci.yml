@@ -117,6 +117,12 @@ jobs:
       - name: Check Generated-by / Co-authored-by / Signed-off-by trailers
         run: |
           python scripts/check_ai_trailer.py origin/${{ github.base_ref }} HEAD
+      # Deliberately part of this already-required job rather than a new one:
+      # a separate job would not be enforced until it is added to the branch
+      # protection required contexts, leaving the gap open in the meantime.
+      - name: Check author/committer identity is not a placeholder address
+        run: |
+          python scripts/check_commit_identity.py origin/${{ github.base_ref }} HEAD
 
   dependency-scan:
     name: dependency-scan
