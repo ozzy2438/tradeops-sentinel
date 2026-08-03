@@ -32,6 +32,7 @@ from packages.reconciliation import (
     ReconciliationConfig,
     ReconciliationContext,
     ReconciliationEngine,
+    ReconciliationRun,
     fixture_config,
 )
 
@@ -78,6 +79,7 @@ def _build_context(
     *,
     run_id: str,
     family: str | None = None,
+    authoritative_kind: str | None = None,
 ) -> tuple[ReconciliationContext, dict[str, Any]]:
     observations = tuple(
         _OBSERVATION_MODELS[raw["observation_kind"]].model_validate(raw) for raw in raws
@@ -103,6 +105,10 @@ def _build_context(
         remaining_fields.remove(field_name)
     for field_name in remaining_fields:
         selection[field_name] = baseline
+
+    by_kind = {observation.observation_kind: observation for observation in observations}
+    if authoritative_kind is not None:
+        selection["base_amount"] = by_kind[authoritative_kind]
 
     trade_id = Counter(item.source_business_key for item in observations).most_common(1)[0][0]
     canonical = assemble_canonical_state(
@@ -201,7 +207,7 @@ def _build_context(
         source_observations=observations,
         linkage_decision=decision,
     )
-    return context, {observation.observation_kind: observation for observation in observations}
+    return context, by_kind
 
 
 @pytest.mark.parametrize("product", ["FX_SPOT", "FX_FORWARD"])
@@ -319,6 +325,59 @@ def test_missing_source_arrival_window_boundary_is_deterministic(
     at_result = ReconciliationEngine(config).run(at_window)
     assert [item.family for item in at_result.breaks] == ["MISSING_REQUIRED_SOURCE"]
 
+    after_window = ReconciliationContext(
+        reconciliation_run_id=context.reconciliation_run_id,
+        run_version=context.run_version,
+        canonical_state=context.canonical_state,
+        source_observations=context.source_observations,
+        evaluated_at=context.canonical_state.source_watermark + timedelta(seconds=61),
+        linkage_decision=context.linkage_decision,
+    )
+    overdue_result = ReconciliationEngine(config).run(after_window)
+    assert overdue_result.breaks[0].priority.deadline_status == "OVERDUE"
+
+
+@pytest.mark.parametrize("product", ["FX_SPOT", "FX_FORWARD"])
+def test_field_provenance_controls_the_expected_operand(corpus: Any, product: str) -> None:
+    truth = _truth(corpus, product=product, family=None)
+    raws = _raws_for_truth(corpus, truth)
+    execution = next(raw for raw in raws if raw["observation_kind"] == "EXECUTION")
+    execution["payload"]["base_amount"]["value"] = str(
+        (Decimal(execution["payload"]["base_amount"]["value"]) + Decimal("2.00")).quantize(
+            Decimal("0.01")
+        )
+    )
+    execution["content_hash"] = (
+        "sha256:" + hashlib.sha256(f"provenance-{product}".encode()).hexdigest()
+    )
+    context, by_kind = _build_context(
+        raws,
+        run_id=f"run_provenance_{product.lower()}",
+        authoritative_kind="CONFIRMATION",
+    )
+
+    result = ReconciliationEngine(fixture_config()).run(context)
+
+    economic_break = next(
+        item for item in result.breaks if item.family == "ECONOMIC_VALUE_MISMATCH"
+    )
+    comparison = next(
+        item for item in economic_break.comparisons if item.field_path == "/payload/base_amount"
+    )
+    assert comparison.expected_source_observation_id == by_kind["CONFIRMATION"].observation_id
+    assert comparison.observed_source_observation_id == by_kind["EXECUTION"].observation_id
+
+
+def test_reconciliation_run_hash_is_self_validating(corpus: Any) -> None:
+    truth = _truth(corpus, product="FX_SPOT", family=None)
+    context, _ = _build_context(_raws_for_truth(corpus, truth), run_id="run_hash_validation_001")
+    run = ReconciliationEngine(fixture_config()).run(context)
+    tampered = run.model_dump(mode="json")
+    tampered["content_hash"] = "sha256:" + "0" * 64
+
+    with pytest.raises(ValidationError, match="content_hash"):
+        ReconciliationRun.model_validate(tampered)
+
 
 def test_same_content_replay_does_not_become_duplicate_conflict(corpus: Any) -> None:
     truth = _truth(corpus, product="FX_FORWARD", family=None)
@@ -381,6 +440,15 @@ def test_invalid_config_is_rejected_and_fixture_is_not_operationally_approved() 
     assert config.approval_reference is None
     assert len(config.arrival_windows) == 6
     assert len(config.decimal_tolerances) == 6
+    assert config.detection_rule_version == "1.0.0"
+    assert {
+        rule.observation_kind: rule.expected_status for rule in config.lifecycle_expected_statuses
+    } == {
+        "EXECUTION": "NEW",
+        "TRADE_CAPTURE": "CAPTURED",
+        "CONFIRMATION": "CONFIRMED",
+        "BOOKING": "BOOKED",
+    }
 
     data = config.model_dump(mode="python")
     data["arrival_windows"] = data["arrival_windows"][:-1]

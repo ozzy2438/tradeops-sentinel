@@ -887,9 +887,15 @@ class ReconciliationEngine:
             severity = missing_severity[severity_context]
         else:
             severity = fixed_severity[family]
-        deadline: DeadlineStatus = (
-            "DUE" if family == "MISSING_REQUIRED_SOURCE" else "NO_CONFIGURED_DEADLINE"
-        )
+        if family == "MISSING_REQUIRED_SOURCE":
+            if missing is None:
+                raise ValueError("missing-source break requires an arrival-window expectation")
+            expected_by = missing[2]
+            deadline: DeadlineStatus = (
+                "OVERDUE" if context.effective_evaluated_at > expected_by else "DUE"
+            )
+        else:
+            deadline = "NO_CONFIGURED_DEADLINE"
         ordering_key = (2, _SEVERITY_RANK[severity], _DEADLINE_RANK[deadline], 0)
         detected = detected_at or context.effective_evaluated_at
         hash_payload = {
