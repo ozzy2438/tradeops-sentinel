@@ -47,6 +47,12 @@ _DEADLINE_RANK: dict[DeadlineStatus, int] = {
     "DUE": 2,
     "NO_CONFIGURED_DEADLINE": 3,
 }
+_POST_ACTION_FIELDS: tuple[tuple[str, str], ...] = (
+    ("/payload/book_id", "IDENTIFIER"),
+    ("/payload/lifecycle_status", "LIFECYCLE_STATUS"),
+    ("/payload/booking_version", "SOURCE_VERSION"),
+    ("/payload/record_fingerprint", "CONTENT_HASH"),
+)
 
 
 class ReconciliationEngine:
@@ -554,6 +560,19 @@ class ReconciliationEngine:
             None,
         )
         if expected is None:
+            observed_status = self._field_value(observed, "/payload/lifecycle_status")
+            expected = next(
+                (
+                    item
+                    for item in observations
+                    if item is not observed
+                    and self._field_value(item, "/payload/lifecycle_status") != observed_status
+                ),
+                None,
+            )
+        if expected is None:
+            expected = next((item for item in observations if item is not observed), None)
+        if expected is None:
             return None
         field_path = "/payload/lifecycle_status"
         evidence_pair = self._comparison_evidence(
@@ -563,11 +582,15 @@ class ReconciliationEngine:
             expected,
             observed,
         )
+        observed_value = self._field_value(observed, field_path)
+        expected_value = self._field_value(expected, field_path)
+        if expected_value == observed_value:
+            expected_value = self.config.lifecycle_rule(expected.observation_kind).expected_status
         comparison = self._comparison(
             field_path=field_path,
             value_type="LIFECYCLE_STATUS",
-            expected_value=self.config.lifecycle_rule(expected.observation_kind).expected_status,
-            observed_value=self._field_value(observed, field_path),
+            expected_value=expected_value,
+            observed_value=observed_value,
             tolerance=BreakTolerance(mode="NONE"),
             expected=expected,
             observed=observed,
@@ -594,7 +617,7 @@ class ReconciliationEngine:
         post_action = verification.post_action
         changed = list(verification.changed_fields)
         if post_action is not None:
-            for field_path in ("/payload/book_id", "/payload/lifecycle_status"):
+            for field_path, _ in _POST_ACTION_FIELDS:
                 expected_value = self._field_value(pre_action, field_path)
                 observed_value = self._field_value(post_action, field_path)
                 if expected_value != observed_value and not any(
@@ -657,11 +680,7 @@ class ReconciliationEngine:
             comparisons.append(
                 self._comparison(
                     field_path=changed_field.field_path,
-                    value_type=(
-                        "IDENTIFIER"
-                        if changed_field.field_path == "/payload/book_id"
-                        else "LIFECYCLE_STATUS"
-                    ),
+                    value_type=dict(_POST_ACTION_FIELDS)[changed_field.field_path],
                     expected_value=changed_field.expected_value,
                     observed_value=changed_field.observed_value,
                     tolerance=BreakTolerance(mode="NONE"),

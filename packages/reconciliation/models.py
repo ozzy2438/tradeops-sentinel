@@ -25,11 +25,18 @@ from packages.contracts.models import (
     TradeBreak,
 )
 
+PostActionFieldPath = Literal[
+    "/payload/book_id",
+    "/payload/lifecycle_status",
+    "/payload/booking_version",
+    "/payload/record_fingerprint",
+]
+
 
 class ChangedField(ContractModel):
     """A field difference observed during a read-only post-action verification."""
 
-    field_path: Literal["/payload/book_id", "/payload/lifecycle_status"]
+    field_path: PostActionFieldPath
     expected_value: str = Field(min_length=1)
     observed_value: str = Field(min_length=1)
 

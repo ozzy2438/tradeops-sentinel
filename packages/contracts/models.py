@@ -1060,6 +1060,8 @@ _BREAK_COMPARISON_POLICY: dict[BreakFamily, tuple[BreakComparisonSpec, ...]] = {
     "POST_ACTION_VERIFICATION_FAILURE": (
         ("/payload/book_id", "IDENTIFIER"),
         ("/payload/lifecycle_status", "LIFECYCLE_STATUS"),
+        ("/payload/booking_version", "SOURCE_VERSION"),
+        ("/payload/record_fingerprint", "CONTENT_HASH"),
     ),
 }
 _BREAK_COMPARISON_EVIDENCE_ROLES: dict[BreakFamily, frozenset[BreakEvidenceRole]] = {

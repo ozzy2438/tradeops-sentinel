@@ -225,6 +225,52 @@ def test_clean_spot_and_forward_lifecycles_pass(corpus: Any, product: str) -> No
     assert result.config_hash == fixture_config().content_hash
 
 
+@pytest.mark.parametrize("product", ["FX_SPOT", "FX_FORWARD"])
+def test_mixed_terminal_lifecycle_statuses_fail_closed(corpus: Any, product: str) -> None:
+    truth = _truth(corpus, product=product, family=None)
+    raws = _raws_for_truth(corpus, truth)
+    terminal_updates = {
+        "EXECUTION": {
+            "execution_type": "CANCEL",
+            "execution_status": "CANCELLED",
+            "lifecycle_status": "CANCELLED",
+        },
+        "TRADE_CAPTURE": {
+            "capture_type": "AMEND",
+            "capture_status": "AMENDED",
+            "lifecycle_status": "AMENDED",
+        },
+        "CONFIRMATION": {
+            "confirmation_status": "CANCELLED",
+            "lifecycle_status": "CANCELLED",
+        },
+        "BOOKING": {
+            "booking_status": "AMENDED",
+            "lifecycle_status": "AMENDED",
+        },
+    }
+    for raw in raws:
+        raw["payload"].update(terminal_updates[raw["observation_kind"]])
+        raw["content_hash"] = (
+            "sha256:"
+            + hashlib.sha256(
+                f"mixed-terminal-{product}-{raw['observation_kind']}".encode()
+            ).hexdigest()
+        )
+
+    context, _ = _build_context(
+        raws,
+        run_id=f"run_mixed_terminal_{product.lower()}",
+    )
+
+    result = ReconciliationEngine(fixture_config()).run(context)
+
+    assert result.result == "BREAKS_DETECTED"
+    assert [item.family for item in result.breaks] == ["LIFECYCLE_STATUS_MISMATCH"]
+    comparison = result.breaks[0].comparisons[0]
+    assert {comparison.expected_value, comparison.observed_value} == {"AMENDED", "CANCELLED"}
+
+
 @pytest.mark.parametrize("family", _NEGATIVE_FAMILIES)
 @pytest.mark.parametrize("product", ["FX_SPOT", "FX_FORWARD"])
 def test_each_data_break_family_is_typed_and_scoped(
@@ -549,6 +595,81 @@ def test_post_action_changed_field_is_readback_failure(corpus: Any) -> None:
         "POST_ACTION_READ",
         "CHANGED_FIELD_DIFF",
         "RECONCILIATION_RESULT",
+    }
+
+
+@pytest.mark.parametrize("product", ["FX_SPOT", "FX_FORWARD"])
+def test_post_action_booking_version_and_fingerprint_drift_is_a_break(
+    corpus: Any,
+    product: str,
+) -> None:
+    truth = _truth(corpus, product=product, family=None)
+    raws = _raws_for_truth(corpus, truth)
+    pre_raw = next(raw for raw in raws if raw["observation_kind"] == "BOOKING")
+    post_raw = copy.deepcopy(pre_raw)
+    post_raw["observation_id"] = f"obs_booking_post_action_drift_{product.lower()}"
+    post_raw["source_event_id"] = f"evt_booking_post_action_drift_{product.lower()}"
+    post_raw["source_version"] = "2"
+    post_raw["source_sequence"] = 5
+    post_raw["ingest_time"] = (
+        _OBSERVATION_MODELS["BOOKING"].model_validate(pre_raw).ingest_time + timedelta(minutes=1)
+    ).isoformat()
+    post_raw["payload"]["booking_version"] = 2
+    post_raw["payload"]["record_fingerprint"] = "sha256:" + "9" * 64
+    post_raw["content_hash"] = (
+        "sha256:" + hashlib.sha256(f"post-action-drift-{product}".encode()).hexdigest()
+    )
+    raws = [raw for raw in raws if raw["observation_kind"] != "BOOKING"]
+    raws.extend([pre_raw, post_raw])
+    context, _ = _build_context(
+        raws,
+        run_id=f"run_post_action_drift_{product.lower()}",
+    )
+    pre_action = next(
+        observation
+        for observation in context.source_observations
+        if observation.observation_id == pre_raw["observation_id"]
+    )
+    post_action = next(
+        observation
+        for observation in context.source_observations
+        if observation.observation_id == post_raw["observation_id"]
+    )
+    assert isinstance(pre_action, BookingObservation)
+    assert isinstance(post_action, BookingObservation)
+    verification = PostActionVerification(
+        action_instruction_hash="sha256:" + "9" * 64,
+        pre_action=pre_action,
+        post_action=post_action,
+        changed_fields=(),
+    )
+    context = ReconciliationContext(
+        reconciliation_run_id=context.reconciliation_run_id,
+        run_version=context.run_version,
+        canonical_state=context.canonical_state,
+        source_observations=context.source_observations,
+        linkage_decision=context.linkage_decision,
+        post_action_verification=verification,
+    )
+
+    result = ReconciliationEngine(fixture_config()).run(context)
+
+    assert [item.family for item in result.breaks] == ["POST_ACTION_VERIFICATION_FAILURE"]
+    assert {comparison.field_path for comparison in result.breaks[0].comparisons} == {
+        "/payload/booking_version",
+        "/payload/record_fingerprint",
+    }
+    assert {comparison.value_type for comparison in result.breaks[0].comparisons} == {
+        "SOURCE_VERSION",
+        "CONTENT_HASH",
+    }
+    assert {
+        evidence.field_path
+        for evidence in result.breaks[0].evidence
+        if evidence.role == "CHANGED_FIELD_DIFF"
+    } == {
+        "/payload/booking_version",
+        "/payload/record_fingerprint",
     }
 
 
