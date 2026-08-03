@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from packages.contracts import compute_observation_content_hash
 from packages.contracts.models import (
     Actor,
     BookingObservation,
@@ -19,8 +19,14 @@ from packages.contracts.models import (
     TradeCaptureObservation,
 )
 from packages.generator import generate_corpus
-from packages.persistence import InboxStore, IngestOutcome, SourceConflictError
-from packages.persistence.assembler import CANONICAL_FIELD_NAMES, assemble_canonical_state
+from packages.persistence import (
+    InboxStore,
+    IngestOutcome,
+    SourceConflictError,
+    assemble_canonical_state,
+    load_mvp_source_of_truth_policy,
+    resolve_field_selection,
+)
 from packages.reconciliation import ReconciliationEngine, fixture_config
 from packages.reconciliation.models import ReconciliationContext
 
@@ -33,13 +39,6 @@ _OBSERVATION_MODELS: dict[str, Any] = {
     "CONFIRMATION": ConfirmationObservation,
     "BOOKING": BookingObservation,
 }
-_SAFE_EXTRA_FIELDS = (
-    "lifecycle_status",
-    "counterparty_id",
-    "book_id",
-    "settlement_rule_version",
-    "product_type",
-)
 
 
 def _observation_sort_key(observation: ObservationModel) -> tuple[Any, ...]:
@@ -63,20 +62,21 @@ def _locked_context(raws: list[dict[str, Any]], run_id: str) -> ReconciliationCo
     observations = _as_observations(raws)
     if not observations:
         raise AssertionError("TS-13 locked context requires at least one observation")
-    if len(observations) > len(_SAFE_EXTRA_FIELDS) + 1:
-        raise AssertionError("TS-13 fixture helper cannot represent this source-set width")
-
     anchor = observations[0]
-    field_selection: dict[str, ObservationModel] = {
-        field_name: anchor for field_name in CANONICAL_FIELD_NAMES
-    }
-    for observation, field_name in zip(observations[1:], _SAFE_EXTRA_FIELDS):
-        field_selection[field_name] = observation
+    trade_id = Counter(item.source_business_key for item in observations).most_common(1)[0][0]
+    policy = load_mvp_source_of_truth_policy()
+    field_selection = resolve_field_selection(
+        trade_id=trade_id,
+        source_observations=observations,
+        source_of_truth_policy=policy,
+    )
 
     canonical = assemble_canonical_state(
-        trade_id=anchor.payload.source_trade_id,
+        trade_id=trade_id,
         canonical_state_version=1,
         field_selection=field_selection,
+        source_observations=observations,
+        source_of_truth_policy=policy,
         correlation_id=anchor.correlation_id,
         actor=Actor(identity_type="SYSTEM", actor_id="ts13_fixture_assembler"),
     )
@@ -113,10 +113,6 @@ def _duplicate_group_keys(
         for key, group in grouped.items()
         if len({observation.content_hash for observation in group}) > 1
     }
-
-
-def _content_hash(marker: str) -> str:
-    return "sha256:" + hashlib.sha256(marker.encode("utf-8")).hexdigest()
 
 
 def test_locked_corpus_reruns_are_identical_and_order_independent() -> None:
@@ -189,11 +185,17 @@ def test_duplicate_event_replay_is_idempotent_and_conflict_is_fail_closed() -> N
             "source_event_id": "evt_ts13_replay_delivery",
         }
     )
-    conflicting = original.model_copy(
+    changed_payload = original.payload.model_copy(update={"counterparty_id": "cp_conflict"})
+    conflicting_without_hash = original.model_copy(
         update={
             "observation_id": "obs_ts13_conflicting_delivery",
             "source_event_id": "evt_ts13_conflicting_delivery",
-            "content_hash": _content_hash("ts13-conflicting-content"),
+            "payload": changed_payload,
+        }
+    )
+    conflicting = conflicting_without_hash.model_copy(
+        update={
+            "content_hash": compute_observation_content_hash(conflicting_without_hash),
         }
     )
 

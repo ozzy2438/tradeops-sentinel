@@ -1,11 +1,10 @@
 """source_event_inbox ingest decision logic (issue #10 / consistency item C-09).
 
 This module is deliberately storage-agnostic: :class:`InboxStore` is a pure
-in-memory reference implementation whose decision rules are the single
-source of truth for the ingest outcome. :mod:`packages.persistence.postgres`
-enforces the identical rule via the ``source_event_inbox_identity_version_key``
-constraint declared in ``ddl/0001_canonical_persistence.sql``, so the two can
-never silently drift apart in tests.
+in-memory reference implementation of the ingest outcomes.  PostgreSQL
+enforces uniqueness and append-only storage through
+``ddl/0001_canonical_persistence.sql``; a transactional psycopg adapter and
+its concurrency semantics remain a separate hardening slice.
 
 Conflict key (Honey, 2026-08-02T23:34 — ADR-001 / identity-policy):
 source identity/version is the *stable source-family* identity —
@@ -21,6 +20,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import NamedTuple
 
+from packages.contracts.hashing import validate_observation_content_hash
 from packages.contracts.models import DuplicateSourceConflict, ObservationEnvelope
 
 
@@ -93,6 +93,10 @@ class InboxStore:
         self._by_identity: dict[IdentityKey, InboxRecord] = {}
 
     def ingest(self, observation: ObservationEnvelope) -> IngestResult:
+        # Never trust a caller-supplied fingerprint.  Validation happens before
+        # either insertion or replay/conflict classification, so a forged hash
+        # cannot suppress a material payload difference.
+        validate_observation_content_hash(observation)
         key = identity_key(observation)
         existing = self._by_identity.get(key)
 

@@ -19,7 +19,7 @@
     "lineage_group_count": 144,
     "source_observation_count": 582,
     "config_hash": "sha256:8e8587a535dc49567b9caca82cd1b7d43a0b1f50bb1547f0691ffe414775c329",
-    "source_fixture_hash": "sha256:54f008bfb1634c135741868a2a3b5a9b2c01a688270ff9526911540c296a71a7"
+    "source_fixture_hash": "sha256:2957338b50bd2028403ce875c8d02b9bb65794d33b4f7f5c6ed3c7b59e26066b"
   },
   "rerun_determinism": {
     "lineage_groups": 144,

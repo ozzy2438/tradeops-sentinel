@@ -1,29 +1,23 @@
-"""Canonical assembler: builds a versioned CanonicalTradeState from an
-already-resolved per-field selection (issue #10).
+"""Policy-enforced construction of versioned canonical trade state.
 
-Scope boundary (Honey, 2026-08-02T23:38): the assembler must NOT infer
-per-field precedence by promoting every canonical field from a single
-arbitrary observation. ADR-001 assigns field-level authority explicitly —
-execution/trade-capture for economics, confirmation for its own
-status/content, booking for current booking values — and comparing or
-ranking sources against that authority table is reconciliation (TS-11),
-out of scope here. This module instead takes a ``field_selection``: an
-explicit mapping of each canonical field name to the single observation
-already chosen as authoritative for it (by the caller — a test fixture
-today, a future TS-11-adjacent resolver later). The assembler's own job is
-purely persistence-shaped: read the selected value, build correct
-field-level provenance and a source watermark, and produce the next
-append-only version — it never mutates or discards a prior version, and it
-never makes a selection decision itself.
+The full locked source set is kept separate from the per-field selection.
+The resolver derives that selection from the packaged, versioned
+``SourceOfTruthPolicy``; the assembler recomputes it and fails closed if a
+caller attempts to substitute an unauthorised source.  Every observed source
+still remains in ``source_version_set`` so reconciliation can evaluate
+conflicts, missing sources, and non-authoritative values without weakening
+canonical provenance.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
-from typing import Any
+from collections.abc import Iterable, Mapping, Sequence
+from importlib.resources import files
+from typing import Any, Literal
 
+from packages.contracts.hashing import validate_observation_content_hash
 from packages.contracts.models import (
     Actor,
     CanonicalFields,
@@ -31,12 +25,12 @@ from packages.contracts.models import (
     FieldProvenance,
     FieldProvenanceMap,
     ObservationEnvelope,
+    SourceOfTruthPolicy,
     SourceVersionSetItem,
 )
 
 _NORMALISATION_RULE_ID = "ts10-explicit-field-selection"
 _NORMALISATION_RULE_VERSION = "1.0.0"
-_RESOLUTION_RULE_VERSION = "1.0.0"
 
 CANONICAL_FIELD_NAMES: tuple[str, ...] = (
     "product_type",
@@ -55,11 +49,208 @@ CANONICAL_FIELD_NAMES: tuple[str, ...] = (
 )
 
 FieldSelection = Mapping[str, ObservationEnvelope]
-"""Maps each canonical field name to the observation already chosen as
-authoritative for it. Must contain exactly ``CANONICAL_FIELD_NAMES``; the
-same observation may be selected for multiple fields (e.g. all of an
-execution's economics), but the mapping itself — not this module — is
-where that choice is made."""
+"""Maps each canonical field to a policy-resolved source observation."""
+
+_SUPPORTED_SOURCE_OF_TRUTH_POLICY_VERSION = "1.0.0"
+
+
+class CanonicalAssemblyError(ValueError):
+    """Base class for fail-closed canonical assembly errors."""
+
+
+class SourceObservationSetError(CanonicalAssemblyError):
+    """Raised when the locked full source set is incomplete or cross-scope."""
+
+
+class SourceOfTruthPolicyVersionError(CanonicalAssemblyError):
+    """Raised when the assembler does not implement the supplied policy version."""
+
+
+class SourceOfTruthPolicyContentError(CanonicalAssemblyError):
+    """Raised when policy content differs from the packaged approved version."""
+
+    def __init__(self, *, expected_hash: str, received_hash: str) -> None:
+        self.expected_hash = expected_hash
+        self.received_hash = received_hash
+        super().__init__(
+            "source-of-truth policy content is not the packaged approved policy: "
+            f"expected_hash={expected_hash!r} received_hash={received_hash!r}"
+        )
+
+
+class SourceOfTruthSelectionError(CanonicalAssemblyError):
+    """Raised when caller selection differs from deterministic policy resolution."""
+
+    def __init__(
+        self,
+        *,
+        field_name: str,
+        selected: ObservationEnvelope,
+        required: ObservationEnvelope,
+        policy_version: str,
+    ) -> None:
+        self.field_name = field_name
+        self.selected_observation_id = selected.observation_id
+        self.required_observation_id = required.observation_id
+        self.policy_version = policy_version
+        super().__init__(
+            "source-of-truth selection is not authorised: "
+            f"field={field_name!r} selected_observation_id={selected.observation_id!r} "
+            f"selected_source_system={selected.source_system!r} "
+            f"required_observation_id={required.observation_id!r} "
+            f"required_source_system={required.source_system!r} "
+            f"policy_version={policy_version!r}"
+        )
+
+
+def load_mvp_source_of_truth_policy() -> SourceOfTruthPolicy:
+    """Load the packaged, versioned ADR-001 MVP policy artefact."""
+
+    policy_path = files("packages.contracts").joinpath(
+        "examples", "valid", "source-of-truth-policy.json"
+    )
+    return SourceOfTruthPolicy.model_validate_json(policy_path.read_text(encoding="utf-8"))
+
+
+def _policy_content_hash(policy: SourceOfTruthPolicy) -> str:
+    canonical = json.dumps(
+        policy.model_dump(mode="json"),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _validate_policy(policy: SourceOfTruthPolicy) -> None:
+    if policy.policy_version != _SUPPORTED_SOURCE_OF_TRUTH_POLICY_VERSION:
+        raise SourceOfTruthPolicyVersionError(
+            "unsupported source-of-truth policy version: "
+            f"expected={_SUPPORTED_SOURCE_OF_TRUTH_POLICY_VERSION!r} "
+            f"received={policy.policy_version!r}"
+        )
+    expected_hash = _policy_content_hash(load_mvp_source_of_truth_policy())
+    received_hash = _policy_content_hash(policy)
+    if received_hash != expected_hash:
+        raise SourceOfTruthPolicyContentError(
+            expected_hash=expected_hash,
+            received_hash=received_hash,
+        )
+
+
+def _source_reference(observation: ObservationEnvelope) -> tuple[str, str, str, str, str]:
+    return (
+        observation.observation_id,
+        observation.observation_kind,
+        observation.source_system,
+        observation.source_version,
+        observation.content_hash,
+    )
+
+
+def _locked_source_set(
+    source_observations: Iterable[ObservationEnvelope],
+) -> tuple[ObservationEnvelope, ...]:
+    observations = tuple(source_observations)
+    if not observations:
+        raise SourceObservationSetError("source_observations must not be empty")
+    for observation in observations:
+        validate_observation_content_hash(observation)
+
+    observation_ids = [observation.observation_id for observation in observations]
+    if len(observation_ids) != len(set(observation_ids)):
+        raise SourceObservationSetError("source_observations observation IDs must be unique")
+
+    anchor_scope = (
+        observations[0].tenant_id,
+        observations[0].portfolio_id,
+        observations[0].correlation_id,
+    )
+    for observation in observations[1:]:
+        if (
+            observation.tenant_id,
+            observation.portfolio_id,
+            observation.correlation_id,
+        ) != anchor_scope:
+            raise SourceObservationSetError(
+                "source_observations must remain inside one tenant/portfolio/correlation scope"
+            )
+    return tuple(
+        sorted(
+            observations,
+            key=lambda item: (
+                item.observation_kind,
+                item.source_system,
+                item.source_business_key,
+                int(item.source_version),
+                item.observation_id,
+                item.content_hash,
+            ),
+        )
+    )
+
+
+def _eligible_for_trade(
+    observation: ObservationEnvelope,
+    trade_id: str,
+) -> bool:
+    return (
+        observation.source_business_key == trade_id
+        or observation.payload.source_trade_id == trade_id
+    )
+
+
+def _resolved_observation(
+    *,
+    field_name: str,
+    trade_id: str,
+    source_observations: Sequence[ObservationEnvelope],
+    policy: SourceOfTruthPolicy,
+) -> ObservationEnvelope:
+    field_path = f"/payload/{field_name}"
+    rule = next((item for item in policy.field_rules if item.field_path == field_path), None)
+    if rule is None:
+        raise SourceObservationSetError(f"source-of-truth policy has no rule for {field_path}")
+    eligible = [
+        observation
+        for observation in source_observations
+        if _eligible_for_trade(observation, trade_id)
+    ]
+    for source_system in rule.source_precedence:
+        candidates = [item for item in eligible if item.source_system == source_system]
+        if not candidates:
+            continue
+        # Higher source versions supersede lower versions.  A same-version
+        # conflict remains visible in the full source set and is resolved to a
+        # stable operand solely so reconciliation can emit the typed conflict.
+        return sorted(
+            candidates,
+            key=lambda item: (-int(item.source_version), item.observation_id, item.content_hash),
+        )[0]
+    raise SourceObservationSetError(
+        f"no policy-authorised source is available for canonical field {field_path}"
+    )
+
+
+def resolve_field_selection(
+    *,
+    trade_id: str,
+    source_observations: Iterable[ObservationEnvelope],
+    source_of_truth_policy: SourceOfTruthPolicy,
+) -> dict[str, ObservationEnvelope]:
+    """Resolve every canonical field deterministically under a versioned policy."""
+
+    _validate_policy(source_of_truth_policy)
+    locked_sources = _locked_source_set(source_observations)
+    return {
+        field_name: _resolved_observation(
+            field_name=field_name,
+            trade_id=trade_id,
+            source_observations=locked_sources,
+            policy=source_of_truth_policy,
+        )
+        for field_name in CANONICAL_FIELD_NAMES
+    }
 
 
 def _field_value(observation: ObservationEnvelope, field_name: str) -> Any:
@@ -74,10 +265,22 @@ def _canonical_fields_from_selection(field_selection: FieldSelection) -> Canonic
     return CanonicalFields(**values)
 
 
-def _field_provenance_map(field_selection: FieldSelection) -> FieldProvenanceMap:
+def _field_provenance_map(
+    field_selection: FieldSelection,
+    source_of_truth_policy: SourceOfTruthPolicy,
+) -> FieldProvenanceMap:
     fields: dict[str, FieldProvenance] = {}
     for field_name in CANONICAL_FIELD_NAMES:
         observation = field_selection[field_name]
+        field_path = f"/payload/{field_name}"
+        rule = next(
+            item for item in source_of_truth_policy.field_rules if item.field_path == field_path
+        )
+        conflict_status: Literal["SELECTED", "SECONDARY_SUPPORTING"] = (
+            "SELECTED"
+            if observation.source_system in rule.trusted_sources
+            else "SECONDARY_SUPPORTING"
+        )
         fields[field_name] = FieldProvenance(
             source_type=observation.observation_kind,
             source_system=observation.source_system,
@@ -86,14 +289,14 @@ def _field_provenance_map(field_selection: FieldSelection) -> FieldProvenanceMap
             source_observation_id=observation.observation_id,
             source_observation_entity_version=observation.entity_version,
             source_version=observation.source_version,
-            field_path=f"/payload/{field_name}",
+            field_path=field_path,
             normalisation_rule_id=_NORMALISATION_RULE_ID,
             normalisation_rule_version=_NORMALISATION_RULE_VERSION,
-            resolution_rule_version=_RESOLUTION_RULE_VERSION,
+            resolution_rule_version=source_of_truth_policy.policy_version,
             observed_at=observation.event_time,
             effective_at=observation.effective_time,
             ingested_at=observation.ingest_time,
-            conflict_status="SELECTED",
+            conflict_status=conflict_status,
         )
     return FieldProvenanceMap(**fields)
 
@@ -109,6 +312,7 @@ def _validate_consistent_observation_identity(field_selection: FieldSelection) -
 
     content_hash_by_observation_id: dict[str, str] = {}
     for observation in field_selection.values():
+        validate_observation_content_hash(observation)
         seen_hash = content_hash_by_observation_id.get(observation.observation_id)
         if seen_hash is None:
             content_hash_by_observation_id[observation.observation_id] = observation.content_hash
@@ -120,15 +324,9 @@ def _validate_consistent_observation_identity(field_selection: FieldSelection) -
             )
 
 
-def _source_version_set(field_selection: FieldSelection) -> list[SourceVersionSetItem]:
-    # Deduplicate by observation_id: several fields may point at the same
-    # contributing observation (e.g. one execution supplying all of its
-    # own economics). _validate_consistent_observation_identity has
-    # already guaranteed every observation sharing an observation_id here
-    # carries the same content_hash.
-    by_observation_id: dict[str, ObservationEnvelope] = {
-        observation.observation_id: observation for observation in field_selection.values()
-    }
+def _source_version_set(
+    source_observations: Sequence[ObservationEnvelope],
+) -> list[SourceVersionSetItem]:
     return [
         SourceVersionSetItem(
             observation_id=observation.observation_id,
@@ -139,7 +337,7 @@ def _source_version_set(field_selection: FieldSelection) -> list[SourceVersionSe
             source_version=observation.source_version,
             content_hash=observation.content_hash,
         )
-        for observation in sorted(by_observation_id.values(), key=lambda item: item.observation_id)
+        for observation in source_observations
     ]
 
 
@@ -157,11 +355,12 @@ def assemble_canonical_state(
     trade_id: str,
     canonical_state_version: int,
     field_selection: FieldSelection,
+    source_observations: Iterable[ObservationEnvelope],
+    source_of_truth_policy: SourceOfTruthPolicy,
     correlation_id: str,
     actor: Actor,
 ) -> CanonicalTradeState:
-    """Build the next append-only canonical projection version from an
-    already-resolved ``field_selection``.
+    """Build the next append-only projection from a policy-checked selection.
 
     Raises ``KeyError`` if ``field_selection`` does not have *exactly* the
     canonical field names as keys — missing fields or unrecognised extra
@@ -189,15 +388,38 @@ def assemble_canonical_state(
     extra = selected_fields - set(CANONICAL_FIELD_NAMES)
     if extra:
         raise KeyError(f"field_selection has unrecognised canonical fields: {sorted(extra)}")
+    _validate_policy(source_of_truth_policy)
+    locked_sources = _locked_source_set(source_observations)
     _validate_consistent_observation_identity(field_selection)
+    expected_selection = resolve_field_selection(
+        trade_id=trade_id,
+        source_observations=locked_sources,
+        source_of_truth_policy=source_of_truth_policy,
+    )
+    for field_name in CANONICAL_FIELD_NAMES:
+        selected = field_selection[field_name]
+        required = expected_selection[field_name]
+        if _source_reference(selected) != _source_reference(required):
+            raise SourceOfTruthSelectionError(
+                field_name=field_name,
+                selected=selected,
+                required=required,
+                policy_version=source_of_truth_policy.policy_version,
+            )
 
-    state = _canonical_fields_from_selection(field_selection)
-    field_provenance = _field_provenance_map(field_selection)
-    source_version_set = _source_version_set(field_selection)
+    # Build from the observations resolved inside this trust boundary, not
+    # caller-owned objects that merely carry matching references.
+    state = _canonical_fields_from_selection(expected_selection)
+    field_provenance = _field_provenance_map(expected_selection, source_of_truth_policy)
+    source_version_set = _source_version_set(locked_sources)
 
-    tenant_id = field_selection[CANONICAL_FIELD_NAMES[0]].tenant_id
-    portfolio_id = field_selection[CANONICAL_FIELD_NAMES[0]].portfolio_id
-    source_watermark = max(observation.ingest_time for observation in field_selection.values())
+    tenant_id = locked_sources[0].tenant_id
+    portfolio_id = locked_sources[0].portfolio_id
+    if correlation_id != locked_sources[0].correlation_id:
+        raise SourceObservationSetError(
+            "canonical correlation_id must match the locked source observation set"
+        )
+    source_watermark = max(observation.ingest_time for observation in locked_sources)
 
     return CanonicalTradeState(
         trade_id=trade_id,

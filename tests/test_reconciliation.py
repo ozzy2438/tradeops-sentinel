@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from collections import Counter, defaultdict
 from datetime import timedelta
@@ -14,6 +13,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from packages.contracts import compute_observation_content_hash
 from packages.contracts.models import (
     Actor,
     BookingObservation,
@@ -24,8 +24,11 @@ from packages.contracts.models import (
     TradeCaptureObservation,
 )
 from packages.generator import generate_corpus
-from packages.persistence import assemble_canonical_state
-from packages.persistence.assembler import CANONICAL_FIELD_NAMES
+from packages.persistence import (
+    assemble_canonical_state,
+    load_mvp_source_of_truth_policy,
+    resolve_field_selection,
+)
 from packages.reconciliation import (
     ChangedField,
     PostActionVerification,
@@ -74,47 +77,34 @@ def _raws_for_truth(corpus: Any, truth: dict[str, Any]) -> list[dict[str, Any]]:
     return copy.deepcopy(by_lineage[truth["lineage_group_id"]])
 
 
+def _recompute_observation_hash(raw: dict[str, Any]) -> None:
+    raw["content_hash"] = compute_observation_content_hash(raw)
+
+
 def _build_context(
     raws: list[dict[str, Any]],
     *,
     run_id: str,
     family: str | None = None,
-    authoritative_kind: str | None = None,
 ) -> tuple[ReconciliationContext, dict[str, Any]]:
     observations = tuple(
         _OBSERVATION_MODELS[raw["observation_kind"]].model_validate(raw) for raw in raws
     )
     baseline = observations[0]
-
-    # Include every exact source in canonical_state.source_version_set while
-    # selecting only field values that remain equal to the clean baseline.
-    remaining_fields = list(CANONICAL_FIELD_NAMES)
-    selection: dict[str, Any] = {}
-    for observation in observations:
-        field_name = next(
-            (
-                candidate
-                for candidate in remaining_fields
-                if getattr(observation.payload, candidate) == getattr(baseline.payload, candidate)
-            ),
-            None,
-        )
-        if field_name is None:
-            raise AssertionError(f"no stable canonical field for {observation.observation_id}")
-        selection[field_name] = observation
-        remaining_fields.remove(field_name)
-    for field_name in remaining_fields:
-        selection[field_name] = baseline
-
     by_kind = {observation.observation_kind: observation for observation in observations}
-    if authoritative_kind is not None:
-        selection["base_amount"] = by_kind[authoritative_kind]
-
     trade_id = Counter(item.source_business_key for item in observations).most_common(1)[0][0]
+    policy = load_mvp_source_of_truth_policy()
+    selection = resolve_field_selection(
+        trade_id=trade_id,
+        source_observations=observations,
+        source_of_truth_policy=policy,
+    )
     canonical = assemble_canonical_state(
         trade_id=trade_id,
         canonical_state_version=1,
         field_selection=selection,
+        source_observations=observations,
+        source_of_truth_policy=policy,
         correlation_id=baseline.correlation_id,
         actor=Actor(identity_type="SYSTEM", actor_id="ts11_fixture_assembler"),
     )
@@ -251,12 +241,7 @@ def test_mixed_terminal_lifecycle_statuses_fail_closed(corpus: Any, product: str
     }
     for raw in raws:
         raw["payload"].update(terminal_updates[raw["observation_kind"]])
-        raw["content_hash"] = (
-            "sha256:"
-            + hashlib.sha256(
-                f"mixed-terminal-{product}-{raw['observation_kind']}".encode()
-            ).hexdigest()
-        )
+        _recompute_observation_hash(raw)
 
     context, _ = _build_context(
         raws,
@@ -323,7 +308,7 @@ def test_decimal_tolerance_boundary_is_accepted(corpus: Any, product: str) -> No
     booking = next(raw for raw in raws if raw["observation_kind"] == "BOOKING")
     original_value = Decimal(booking["payload"]["base_amount"]["value"])
     booking["payload"]["base_amount"]["value"] = f"{original_value + Decimal('0.01'):.2f}"
-    booking["content_hash"] = "sha256:" + hashlib.sha256(b"boundary-booking").hexdigest()
+    _recompute_observation_hash(booking)
     context, _ = _build_context(raws, run_id=f"run_decimal_boundary_{product.lower()}")
 
     result = ReconciliationEngine(fixture_config()).run(context)
@@ -393,13 +378,10 @@ def test_field_provenance_controls_the_expected_operand(corpus: Any, product: st
             Decimal("0.01")
         )
     )
-    execution["content_hash"] = (
-        "sha256:" + hashlib.sha256(f"provenance-{product}".encode()).hexdigest()
-    )
+    _recompute_observation_hash(execution)
     context, by_kind = _build_context(
         raws,
         run_id=f"run_provenance_{product.lower()}",
-        authoritative_kind="CONFIRMATION",
     )
 
     result = ReconciliationEngine(fixture_config()).run(context)
@@ -410,8 +392,8 @@ def test_field_provenance_controls_the_expected_operand(corpus: Any, product: st
     comparison = next(
         item for item in economic_break.comparisons if item.field_path == "/payload/base_amount"
     )
-    assert comparison.expected_source_observation_id == by_kind["CONFIRMATION"].observation_id
-    assert comparison.observed_source_observation_id == by_kind["EXECUTION"].observation_id
+    assert comparison.expected_source_observation_id == by_kind["EXECUTION"].observation_id
+    assert comparison.observed_source_observation_id == by_kind["TRADE_CAPTURE"].observation_id
 
 
 def test_reconciliation_run_hash_is_self_validating(corpus: Any) -> None:
@@ -549,7 +531,7 @@ def test_post_action_changed_field_is_readback_failure(corpus: Any) -> None:
     post_raw["payload"]["book_id"] = "book_post_action_001"
     post_raw["payload"]["booking_version"] = 2
     post_raw["payload"]["record_fingerprint"] = "sha256:" + "4" * 64
-    post_raw["content_hash"] = "sha256:" + hashlib.sha256(b"post-action-booking").hexdigest()
+    _recompute_observation_hash(post_raw)
     raws = [raw for raw in raws if raw["observation_kind"] != "BOOKING"]
     raws.extend([pre_raw, post_raw])
     context, _ = _build_context(raws, run_id="run_post_action_001")
@@ -616,9 +598,7 @@ def test_post_action_booking_version_and_fingerprint_drift_is_a_break(
     ).isoformat()
     post_raw["payload"]["booking_version"] = 2
     post_raw["payload"]["record_fingerprint"] = "sha256:" + "9" * 64
-    post_raw["content_hash"] = (
-        "sha256:" + hashlib.sha256(f"post-action-drift-{product}".encode()).hexdigest()
-    )
+    _recompute_observation_hash(post_raw)
     raws = [raw for raw in raws if raw["observation_kind"] != "BOOKING"]
     raws.extend([pre_raw, post_raw])
     context, _ = _build_context(

@@ -54,6 +54,48 @@ jobs:
       - name: Oracle contract tests
         run: pytest -q tests/test_oracle.py
 
+  wheel-clean-install:
+    name: wheel-clean-install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build dependencies
+        run: pip install -e ".[dev]"
+      - name: Build wheel and verify isolated runtime imports
+        run: python scripts/check_wheel_install.py
+
+  postgres-integration:
+    name: postgres-integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tradeops_test
+          POSTGRES_PASSWORD: tradeops_test
+          POSTGRES_USER: tradeops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tradeops_test -d tradeops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TRADEOPS_TEST_DATABASE_URL: postgresql://tradeops_test:tradeops_test@localhost:5432/tradeops_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: pip install -e ".[dev]"
+      - name: Fresh PostgreSQL migration and append-only tests
+        run: pytest -q tests/integration
+
   ai-authorship-trailer-check:
     name: ai-authorship-trailer-check
     runs-on: ubuntu-latest
@@ -75,6 +117,12 @@ jobs:
       - name: Check Generated-by / Co-authored-by / Signed-off-by trailers
         run: |
           python scripts/check_ai_trailer.py origin/${{ github.base_ref }} HEAD
+      # Deliberately part of this already-required job rather than a new one:
+      # a separate job would not be enforced until it is added to the branch
+      # protection required contexts, leaving the gap open in the meantime.
+      - name: Check author/committer identity is not a placeholder address
+        run: |
+          python scripts/check_commit_identity.py origin/${{ github.base_ref }} HEAD
 
   dependency-scan:
     name: dependency-scan
@@ -124,7 +172,7 @@ jobs:
   reconciliation-invariant-tests-DISABLED:
     name: reconciliation-invariant-tests (disabled)
     runs-on: ubuntu-latest
-    if: false # Enable once packages/reconciliation (Epic E5, ADR-002) has real fixtures to run against.
+    if: false # Kept as a legacy named placeholder until TS-15 publishes the dedicated required check. The real invariant suite already runs inside lint-type-unit.
     steps:
       - run: echo "disabled"
 

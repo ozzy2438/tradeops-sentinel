@@ -8,6 +8,10 @@
     ],
     [
       "packages.contracts",
+      "packages.contracts.hashing"
+    ],
+    [
+      "packages.contracts",
       "packages.contracts.models"
     ],
     [
@@ -56,7 +60,15 @@
     ],
     [
       "packages.persistence.assembler",
+      "packages.contracts.hashing"
+    ],
+    [
+      "packages.persistence.assembler",
       "packages.contracts.models"
+    ],
+    [
+      "packages.persistence.inbox",
+      "packages.contracts.hashing"
     ],
     [
       "packages.persistence.inbox",
@@ -100,6 +112,7 @@
     "packages",
     "packages.contracts",
     "packages.contracts.action_models",
+    "packages.contracts.hashing",
     "packages.contracts.models",
     "packages.generator",
     "packages.generator.core",

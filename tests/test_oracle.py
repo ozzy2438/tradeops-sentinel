@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from collections import Counter, defaultdict
 from datetime import timedelta
@@ -12,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from packages.contracts import compute_observation_content_hash
 from packages.contracts.models import (
     Actor,
     BookingObservation,
@@ -24,8 +24,11 @@ from packages.contracts.models import (
 from packages.generator import generate_corpus
 from packages.oracle import evaluate
 from packages.oracle.import_graph import ImportIsolationError, enforce_isolation, scan_repository
-from packages.persistence import assemble_canonical_state
-from packages.persistence.assembler import CANONICAL_FIELD_NAMES
+from packages.persistence import (
+    assemble_canonical_state,
+    load_mvp_source_of_truth_policy,
+    resolve_field_selection,
+)
 from packages.reconciliation import (
     PostActionVerification,
     ReconciliationContext,
@@ -82,29 +85,19 @@ def _build_context(
         _OBSERVATION_MODELS[raw["observation_kind"]].model_validate(raw) for raw in raws
     )
     baseline = observations[0]
-    remaining_fields = list(CANONICAL_FIELD_NAMES)
-    selection: dict[str, Any] = {}
-    for observation in observations:
-        field_name = next(
-            (
-                candidate
-                for candidate in remaining_fields
-                if getattr(observation.payload, candidate) == getattr(baseline.payload, candidate)
-            ),
-            None,
-        )
-        if field_name is None:
-            raise AssertionError(f"no stable canonical field for {observation.observation_id}")
-        selection[field_name] = observation
-        remaining_fields.remove(field_name)
-    for field_name in remaining_fields:
-        selection[field_name] = baseline
-
     trade_id = Counter(item.source_business_key for item in observations).most_common(1)[0][0]
+    policy = load_mvp_source_of_truth_policy()
+    selection = resolve_field_selection(
+        trade_id=trade_id,
+        source_observations=observations,
+        source_of_truth_policy=policy,
+    )
     canonical = assemble_canonical_state(
         trade_id=trade_id,
         canonical_state_version=1,
         field_selection=selection,
+        source_observations=observations,
+        source_of_truth_policy=policy,
         correlation_id=baseline.correlation_id,
         actor=Actor(identity_type="SYSTEM", actor_id="ts12_fixture_assembler"),
     )
@@ -267,9 +260,7 @@ def _post_action_context(
         _OBSERVATION_MODELS["BOOKING"].model_validate(pre_raw).ingest_time + timedelta(minutes=1)
     ).isoformat()
     post_raw["payload"]["book_id"] = f"book_ts12_post_{product.lower()}"
-    post_raw["content_hash"] = (
-        "sha256:" + hashlib.sha256(f"ts12-post-{product}".encode()).hexdigest()
-    )
+    post_raw["content_hash"] = compute_observation_content_hash(post_raw)
     raws = [raw for raw in raws if raw["observation_kind"] != "BOOKING"]
     raws.extend([pre_raw, post_raw])
     context = _build_context(raws, family=None, run_id=run_id)

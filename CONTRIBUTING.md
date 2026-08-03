@@ -29,7 +29,7 @@ Signed-off-by: Osman Orka <REPLACE_WITH_REAL_EMAIL>
 
 Order matters: `Generated-by:` first, then `Co-authored-by:`, then `Signed-off-by:`, with one blank line separating the trailer block from the commit body. A CI check (`scripts/check_ai_trailer.py`) enforces the presence of the correct trailers on every commit in a pull request.
 
-> **Note:** the placeholder emails above must be replaced with the real, verified email of the human operator before any commit is made — see the open question raised in this repository's setup thread. Do not commit with a guessed or example.com-style address.
+> **Note:** the placeholder emails above must be replaced with the real, verified email of the human operator before any commit is made — see the open question raised in this repository's setup thread. Do not commit with a guessed or example.com-style address. This is enforced: `scripts/check_commit_identity.py` runs inside the required `ai-authorship-trailer-check` job and fails the build if any commit's **author or committer** address uses a reserved documentation/test domain (`example.com`, `.invalid`, `.test`, `localhost`, …). The trailer check inspects only the commit message, so the two checks are complementary — both must pass.
 
 Regardless of who or what authored a change, **the repository owner retains sole authority over merges to `main` and release/tag creation.** This is enforced structurally via branch protection and CODEOWNERS, not left as a stated policy.
 
