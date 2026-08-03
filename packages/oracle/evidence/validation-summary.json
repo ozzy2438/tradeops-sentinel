@@ -7,9 +7,10 @@
   "base_main_merge": "c2c9a04f27a8665752727c07afdd50c181702e9c",
   "reviewed_ts11_head": "cdeef7c458ad8b43ef5d657636c9241cd2cb2979",
   "implementation_commit_sha": "c498445d8e5e24ee369ff9a4c982834594854674",
-  "evidence_commit_parent_sha": "c498445d8e5e24ee369ff9a4c982834594854674",
-  "evidence_scope": "This summary records validation of the implementation commit; its containing commit adds only evidence and an assertion that the summary is traceable.",
+  "evidence_commit_parent_sha": "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8",
+  "evidence_scope": "This summary records validation of the TS12-ISO-01 repair commit; its containing commit adds only refreshed evidence and an assertion that the summary is traceable.",
   "repair_parent_sha": "abde5a077acbcc742452ef7894129ac4c3e790ea",
+  "repair_commit_sha": "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8",
   "repair_scope": "TS12-ISO-01 alias-aware dynamic-import detection and negative evidence only.",
   "evidence_files": {
     "dependency_graph": "packages/oracle/evidence/import-isolation.json",
@@ -18,7 +19,7 @@
     "dynamic_import_negative_path": "packages/oracle/evidence/import-isolation-dynamic-negative.json"
   },
   "local_validation": {
-    "pytest": {"command": "pytest -q", "result": "PASS", "tests": 235},
+    "pytest": {"command": "pytest -q", "result": "PASS", "tests": 237},
     "ruff_check": {"command": "ruff check .", "result": "PASS"},
     "ruff_format": {"command": "ruff format --check .", "result": "PASS"},
     "mypy": {"command": "mypy", "result": "PASS", "source_files": 24},
@@ -39,8 +40,8 @@
     "dynamic_alias_enforcement": "ImportIsolationError"
   },
   "genuine_ci": {
-    "run_id": 30791751904,
-    "head_sha": "c498445d8e5e24ee369ff9a4c982834594854674",
+    "run_id": 30793533345,
+    "head_sha": "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8",
     "conclusion": "success",
     "required_jobs": [
       "lint-type-unit",

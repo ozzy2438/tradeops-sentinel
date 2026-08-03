@@ -496,10 +496,11 @@ def test_committed_validation_summary_contains_ts12_evidence() -> None:
     assert summary["local_validation"]["pytest"] == {
         "command": "pytest -q",
         "result": "PASS",
-        "tests": 235,
+        "tests": 237,
     }
-    assert summary["genuine_ci"]["run_id"] == 30791751904
-    assert summary["genuine_ci"]["head_sha"] == summary["implementation_commit_sha"]
+    assert summary["repair_commit_sha"] == "e96ae3ae5d82e36f930d0dbb63c4a26cc88d5bf8"
+    assert summary["genuine_ci"]["run_id"] == 30793533345
+    assert summary["genuine_ci"]["head_sha"] == summary["repair_commit_sha"]
     assert summary["genuine_ci"]["conclusion"] == "success"
     assert summary["import_isolation"]["negative_enforcement"] == "ImportIsolationError"
     assert summary["import_isolation"]["dynamic_alias_negative_cases"] == 2
@@ -507,4 +508,4 @@ def test_committed_validation_summary_contains_ts12_evidence() -> None:
     assert summary["evidence_files"]["dynamic_import_negative_path"].endswith(
         "import-isolation-dynamic-negative.json"
     )
-    assert summary["evidence_commit_parent_sha"] == summary["implementation_commit_sha"]
+    assert summary["evidence_commit_parent_sha"] == summary["repair_commit_sha"]
