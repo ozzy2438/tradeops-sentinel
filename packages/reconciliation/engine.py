@@ -607,7 +607,7 @@ class ReconciliationEngine:
                             observed_value=observed_value,
                         )
                     )
-        if not verification.readback_available and post_action is None:
+        if not verification.readback_available and not changed:
             changed.append(
                 ChangedField(
                     field_path="/payload/book_id",

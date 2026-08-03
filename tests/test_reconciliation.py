@@ -578,6 +578,33 @@ def test_post_action_unavailable_readback_is_a_break(corpus: Any) -> None:
     assert [item.family for item in result.breaks] == ["POST_ACTION_VERIFICATION_FAILURE"]
 
 
+def test_post_action_unavailable_readback_with_post_action_is_a_break(corpus: Any) -> None:
+    truth = _truth(corpus, product="FX_SPOT", family=None)
+    context, by_kind = _build_context(
+        _raws_for_truth(corpus, truth), run_id="run_post_action_unavailable_present_001"
+    )
+    booking = by_kind["BOOKING"]
+    assert isinstance(booking, BookingObservation)
+    verification = PostActionVerification(
+        action_instruction_hash="sha256:" + "8" * 64,
+        pre_action=booking,
+        post_action=booking,
+        readback_available=False,
+    )
+    context = ReconciliationContext(
+        reconciliation_run_id=context.reconciliation_run_id,
+        run_version=context.run_version,
+        canonical_state=context.canonical_state,
+        source_observations=context.source_observations,
+        linkage_decision=context.linkage_decision,
+        post_action_verification=verification,
+    )
+
+    result = ReconciliationEngine(fixture_config()).run(context)
+
+    assert [item.family for item in result.breaks] == ["POST_ACTION_VERIFICATION_FAILURE"]
+
+
 @pytest.mark.parametrize("product", ["FX_SPOT", "FX_FORWARD"])
 def test_post_action_verified_readback_is_not_a_break(corpus: Any, product: str) -> None:
     truth = _truth(corpus, product=product, family=None)
