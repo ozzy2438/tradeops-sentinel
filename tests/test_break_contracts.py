@@ -256,6 +256,41 @@ def test_spot_forward_and_resolved_break_examples_validate() -> None:
     assert reopened.state == "OPEN"
 
 
+@pytest.mark.parametrize(
+    ("field_path", "value_type", "expected_value", "observed_value"),
+    [
+        ("/payload/booking_version", "SOURCE_VERSION", "1", "2"),
+        (
+            "/payload/record_fingerprint",
+            "CONTENT_HASH",
+            "sha256:" + "1" * 64,
+            "sha256:" + "2" * 64,
+        ),
+    ],
+)
+def test_post_action_contract_covers_target_version_and_fingerprint_drift(
+    field_path: str,
+    value_type: str,
+    expected_value: str,
+    observed_value: str,
+) -> None:
+    document = _break("trade-break-post-action.json")
+    document["evaluated_field_paths"] = [field_path]
+    document["comparisons"][0].update(
+        {
+            "field_path": field_path,
+            "value_type": value_type,
+            "expected_value": expected_value,
+            "observed_value": observed_value,
+        }
+    )
+    for evidence in document["evidence"]:
+        evidence["field_path"] = field_path
+
+    _validate_schema("trade-break", document)
+    validate_contract_document("trade-break", document)
+
+
 def test_missing_confirmation_source_uses_medium_severity() -> None:
     document = _break("trade-break-missing-execution.json")
     document["severity_context"] = "CONFIRMATION"

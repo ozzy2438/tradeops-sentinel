@@ -529,7 +529,9 @@
             "missing_source_expectation": {"type": "null"},
             "comparisons": {"items": {"oneOf": [
               {"properties": {"field_path": {"const": "/payload/book_id"}, "value_type": {"const": "IDENTIFIER"}}},
-              {"properties": {"field_path": {"const": "/payload/lifecycle_status"}, "value_type": {"const": "LIFECYCLE_STATUS"}}}
+              {"properties": {"field_path": {"const": "/payload/lifecycle_status"}, "value_type": {"const": "LIFECYCLE_STATUS"}}},
+              {"properties": {"field_path": {"const": "/payload/booking_version"}, "value_type": {"const": "SOURCE_VERSION"}}},
+              {"properties": {"field_path": {"const": "/payload/record_fingerprint"}, "value_type": {"const": "CONTENT_HASH"}}}
             ]}},
             "resolution": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/reconciliationResolution"}, {"$ref": "#/$defs/ownerApprovedNonActionResolution"}]},
             "evidence": {"allOf": [{"contains": {"properties": {"role": {"const": "ACTION_INSTRUCTION"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "PRE_ACTION_READ"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "POST_ACTION_READ"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "CHANGED_FIELD_DIFF"}}, "required": ["role"]}}, {"contains": {"properties": {"role": {"const": "RECONCILIATION_RESULT"}}, "required": ["role"]}}]}

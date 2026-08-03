@@ -25,7 +25,13 @@ select = ["E", "F", "I", "UP"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-packages = ["tradeops_sentinel", "packages.contracts", "packages.generator", "packages.persistence"]
+packages = [
+    "tradeops_sentinel",
+    "packages.contracts",
+    "packages.generator",
+    "packages.persistence",
+    "packages.reconciliation",
+]
 mypy_path = "src"
 
 [tool.pytest.ini_options]
