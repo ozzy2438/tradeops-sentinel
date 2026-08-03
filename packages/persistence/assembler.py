@@ -98,10 +98,34 @@ def _field_provenance_map(field_selection: FieldSelection) -> FieldProvenanceMap
     return FieldProvenanceMap(**fields)
 
 
+def _validate_consistent_observation_identity(field_selection: FieldSelection) -> None:
+    """Reject a field_selection where two different envelope objects share
+    an observation_id but disagree on content_hash (Fizz, 2026-08-02T23:58,
+    finding 1). Without this check, deduplication in
+    ``_source_version_set`` would silently pick an arbitrary one of the
+    two while ``_field_provenance_map``/``_canonical_fields_from_selection``
+    could use the other's field values — an ambiguous, inconsistent
+    provenance the caller would have no way to detect."""
+
+    content_hash_by_observation_id: dict[str, str] = {}
+    for observation in field_selection.values():
+        seen_hash = content_hash_by_observation_id.get(observation.observation_id)
+        if seen_hash is None:
+            content_hash_by_observation_id[observation.observation_id] = observation.content_hash
+        elif seen_hash != observation.content_hash:
+            raise ValueError(
+                "field_selection contains inconsistent envelopes for "
+                f"observation_id={observation.observation_id!r}: content_hash "
+                f"{seen_hash!r} and {observation.content_hash!r} disagree"
+            )
+
+
 def _source_version_set(field_selection: FieldSelection) -> list[SourceVersionSetItem]:
     # Deduplicate by observation_id: several fields may point at the same
     # contributing observation (e.g. one execution supplying all of its
-    # own economics).
+    # own economics). _validate_consistent_observation_identity has
+    # already guaranteed every observation sharing an observation_id here
+    # carries the same content_hash.
     by_observation_id: dict[str, ObservationEnvelope] = {
         observation.observation_id: observation for observation in field_selection.values()
     }
@@ -142,9 +166,14 @@ def assemble_canonical_state(
     Raises ``KeyError`` if ``field_selection`` does not have *exactly* the
     canonical field names as keys — missing fields or unrecognised extra
     keys are both rejected fail-closed (Honey, 2026-08-02T23:46, finding
-    3) — and lets the underlying Pydantic validators reject a selection
-    that spans more than one tenant/portfolio scope (``CanonicalTradeState``
-    enforces this — see ``_validate_source_version_set_scope`` in
+    3). Raises ``ValueError`` if two different envelopes in the selection
+    share an ``observation_id`` but disagree on ``content_hash`` — an
+    ambiguous duplicate identity that would otherwise leave the
+    ``state``/``field_provenance``/``source_version_set`` inconsistent
+    with each other (Fizz, 2026-08-02T23:58, finding 1). Also lets the
+    underlying Pydantic validators reject a selection that spans more
+    than one tenant/portfolio scope (``CanonicalTradeState`` enforces
+    this — see ``_validate_source_version_set_scope`` in
     ``packages/contracts/models.py``).
 
     The caller is responsible for choosing ``canonical_state_version``
@@ -160,6 +189,7 @@ def assemble_canonical_state(
     extra = selected_fields - set(CANONICAL_FIELD_NAMES)
     if extra:
         raise KeyError(f"field_selection has unrecognised canonical fields: {sorted(extra)}")
+    _validate_consistent_observation_identity(field_selection)
 
     state = _canonical_fields_from_selection(field_selection)
     field_provenance = _field_provenance_map(field_selection)

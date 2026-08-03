@@ -134,4 +134,34 @@ COMMENT ON TABLE canonical_trade_state_versions IS
 CREATE INDEX IF NOT EXISTS canonical_trade_state_versions_current_idx
     ON canonical_trade_state_versions (tenant_id, trade_id, canonical_state_version DESC);
 
+-- Append-only enforcement at the database boundary, not just in comments
+-- (Fizz, 2026-08-02T23:58, finding 2; confirmed by Honey, 2026-08-03T00:00).
+-- A fresh install previously had no trigger or privilege boundary
+-- preventing UPDATE/DELETE on canonical_trade_state_versions. A
+-- BEFORE UPDATE/DELETE trigger is used rather than a role/GRANT scheme:
+-- TS-10 does not define application roles (that is a broader concern —
+-- see ADR-008 §3's action_gateway_writer pattern for a different table),
+-- and a trigger enforces insert-only for every role/session uniformly,
+-- with no additional setup required to exercise it in a fresh database.
+CREATE OR REPLACE FUNCTION reject_canonical_trade_state_versions_mutation()
+RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION
+        'canonical_trade_state_versions is append-only: % is not permitted (charter §29, ADR-001)',
+        TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS canonical_trade_state_versions_no_update
+    ON canonical_trade_state_versions;
+CREATE TRIGGER canonical_trade_state_versions_no_update
+    BEFORE UPDATE ON canonical_trade_state_versions
+    FOR EACH ROW EXECUTE FUNCTION reject_canonical_trade_state_versions_mutation();
+
+DROP TRIGGER IF EXISTS canonical_trade_state_versions_no_delete
+    ON canonical_trade_state_versions;
+CREATE TRIGGER canonical_trade_state_versions_no_delete
+    BEFORE DELETE ON canonical_trade_state_versions
+    FOR EACH ROW EXECUTE FUNCTION reject_canonical_trade_state_versions_mutation();
+
 COMMIT;

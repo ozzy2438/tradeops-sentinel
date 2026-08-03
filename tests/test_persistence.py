@@ -43,10 +43,13 @@ def _execution_observation(
     content_marker: str = "v1",
     base_amount: str = "1000000.00",
     event_time: datetime | None = None,
+    ingest_time: datetime | None = None,
+    supersedes_observation_id: str | None = None,
+    supersession_reason: str | None = None,
 ) -> ExecutionObservation:
     event_time = event_time or datetime(2026, 8, 3, 9, 30, tzinfo=UTC)
     effective_time = event_time + timedelta(seconds=0)
-    ingest_time = event_time + timedelta(seconds=2)
+    ingest_time = ingest_time or (event_time + timedelta(seconds=2))
     return ExecutionObservation(
         observation_id=observation_id,
         entity_version=1,
@@ -62,6 +65,8 @@ def _execution_observation(
         ingest_time=ingest_time,
         source_sequence=1,
         lineage_group_id="lineage_spot_0001",
+        supersedes_observation_id=supersedes_observation_id,
+        supersession_reason=supersession_reason,
         actor=Actor(identity_type="SOURCE", actor_id="fix_execution"),
         payload=ExecutionPayload(
             product_type="FX_SPOT",
@@ -189,8 +194,14 @@ def test_replay_across_different_delivery_identity_is_still_idempotent() -> None
 
 
 def test_late_arrival_new_source_version_is_preserved_alongside_prior() -> None:
+    """True late-arrival case (Honey, 2026-08-02T23:52 and 2026-08-03T00:00):
+    the newer logical revision (source_version=2) is ingested FIRST, then
+    the older logical revision (source_version=1) arrives LATE -- its
+    ingest_time is well after v2's ingest_time despite its event_time
+    being earlier. Both remain independently stored regardless of
+    arrival order; the inbox does not require increasing ingest-time
+    order across distinct identity/version keys."""
     store = InboxStore()
-    v1 = _execution_observation(source_version="1", content_marker="v1")
     v2 = _execution_observation(
         observation_id="obs_execution_spot_0001_v2",
         source_event_id="evt_execution_spot_0001_v2",
@@ -198,15 +209,149 @@ def test_late_arrival_new_source_version_is_preserved_alongside_prior() -> None:
         content_marker="v2",
         event_time=datetime(2026, 8, 3, 11, 0, tzinfo=UTC),
     )
+    v1_late = _execution_observation(
+        source_version="1",
+        content_marker="v1",
+        event_time=datetime(2026, 8, 3, 9, 30, tzinfo=UTC),
+        ingest_time=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+    )
 
-    store.ingest(v1)
-    result = store.ingest(v2)
+    v2_result = store.ingest(v2)
+    v1_result = store.ingest(v1_late)
 
-    assert result.outcome is IngestOutcome.INSERTED
-    # No destructive overwrite: both versions remain independently stored.
+    assert v2_result.outcome is IngestOutcome.INSERTED
+    assert v1_result.outcome is IngestOutcome.INSERTED
+    # v1 genuinely arrived late: its event_time precedes v2's, but its
+    # ingest_time is after v2's ingest_time.
+    assert v1_late.event_time < v2.event_time
+    assert v1_late.ingest_time > v2.ingest_time
+    # No destructive overwrite: both versions remain independently stored,
+    # regardless of arrival order.
     assert len(store.all_records()) == 2
-    assert store.get(identity_key(v1)) is not None
+    assert store.get(identity_key(v1_late)) is not None
     assert store.get(identity_key(v2)) is not None
+
+    # Both versions can still be assembled and appended without either
+    # replacing the other, even though v1 was processed after v2.
+    actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
+    v2_state = assemble_canonical_state(
+        trade_id="trade_spot_0001",
+        canonical_state_version=1,
+        field_selection=_single_source_selection(v2),
+        correlation_id=v2.correlation_id,
+        actor=actor,
+    )
+    v1_state = assemble_canonical_state(
+        trade_id="trade_spot_0001",
+        canonical_state_version=2,
+        field_selection=_single_source_selection(v1_late),
+        correlation_id=v1_late.correlation_id,
+        actor=actor,
+    )
+    canonical_trade_state_versions: list = [v2_state, v1_state]
+    assert canonical_trade_state_versions[0] is v2_state
+    assert canonical_trade_state_versions[1] is v1_state
+    assert v2_state.content_hash != v1_state.content_hash
+
+
+def test_linked_correction_preserves_supersession_metadata_and_prior_version() -> None:
+    """Supersession/correction case (Honey, 2026-08-02T23:52): a later
+    observation explicitly supersedes an earlier one via
+    supersedes_observation_id/supersession_reason. Both the original and
+    the correction remain independently preserved in the inbox and as
+    separate append-only canonical versions; the correction's supersession
+    metadata is retrievable, not discarded."""
+    store = InboxStore()
+    original = _execution_observation(source_version="1", content_marker="v1")
+    correction = _execution_observation(
+        observation_id="obs_execution_spot_0001_correction",
+        source_event_id="evt_execution_spot_0001_correction",
+        source_version="2",
+        content_marker="corrected",
+        base_amount="1000500.00",
+        event_time=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+        supersedes_observation_id=original.observation_id,
+        supersession_reason="CORRECTION",
+    )
+
+    original_result = store.ingest(original)
+    correction_result = store.ingest(correction)
+
+    assert original_result.outcome is IngestOutcome.INSERTED
+    assert correction_result.outcome is IngestOutcome.INSERTED
+    assert len(store.all_records()) == 2
+
+    stored_correction = store.get(identity_key(correction))
+    assert stored_correction is not None
+    assert stored_correction.observation.supersedes_observation_id == original.observation_id
+    assert stored_correction.observation.supersession_reason == "CORRECTION"
+    # The original observation the correction points at is itself still
+    # present and untouched -- superseding never deletes or mutates it.
+    stored_original = store.get(identity_key(original))
+    assert stored_original is not None
+    assert stored_original.observation.supersedes_observation_id is None
+
+    actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
+    original_state = assemble_canonical_state(
+        trade_id="trade_spot_0001",
+        canonical_state_version=1,
+        field_selection=_single_source_selection(original),
+        correlation_id=original.correlation_id,
+        actor=actor,
+    )
+    correction_state = assemble_canonical_state(
+        trade_id="trade_spot_0001",
+        canonical_state_version=2,
+        field_selection=_single_source_selection(correction),
+        correlation_id=correction.correlation_id,
+        actor=actor,
+    )
+    canonical_trade_state_versions: list = [original_state, correction_state]
+    assert canonical_trade_state_versions[0].state.base_amount.value == "1000000.00"
+    assert canonical_trade_state_versions[1].state.base_amount.value == "1000500.00"
+
+
+def test_duplicate_observation_id_with_different_content_hash_is_rejected() -> None:
+    """Ambiguous duplicate identity (Fizz, 2026-08-02T23:58; confirmed by
+    Honey, 2026-08-03T00:00): two envelope objects sharing an
+    observation_id but disagreeing on content_hash must never silently
+    flow into state/field_provenance/source_version_set -- the assembler
+    rejects it deterministically before projection."""
+    canonical = _execution_observation()
+    tampered = canonical.model_copy(update={"content_hash": _content_hash("tampered-variant")})
+    actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
+
+    field_selection = _single_source_selection(canonical)
+    field_selection["lifecycle_status"] = tampered
+
+    with pytest.raises(ValueError, match="inconsistent envelopes"):
+        assemble_canonical_state(
+            trade_id="trade_spot_0001",
+            canonical_state_version=1,
+            field_selection=field_selection,
+            correlation_id=canonical.correlation_id,
+            actor=actor,
+        )
+
+
+def test_duplicate_observation_id_with_same_content_hash_remains_idempotent() -> None:
+    """Same observation_id + same content_hash across selected fields is
+    the normal single-source case, not an error."""
+    canonical = _execution_observation()
+    same_object_again = canonical.model_copy()
+    actor = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
+
+    field_selection = _single_source_selection(canonical)
+    field_selection["lifecycle_status"] = same_object_again
+
+    state = assemble_canonical_state(
+        trade_id="trade_spot_0001",
+        canonical_state_version=1,
+        field_selection=field_selection,
+        correlation_id=canonical.correlation_id,
+        actor=actor,
+    )
+    assert state.state.lifecycle_status == "NEW"
 
 
 def test_same_identity_version_different_content_raises_duplicate_source_conflict() -> None:
