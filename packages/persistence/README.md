@@ -71,7 +71,7 @@ and must never substitute for the identity/version conflict key.
 
 The DDL was applied and constraint-tested against a real local
 PostgreSQL 14 instance (`pg_ctl`/`psql`) as part of this change: both
-unique constraints reject the expected violation, and multiple
+unique constraints reject the expected violations, and multiple
 `canonical_state_version` rows coexist per `trade_id` with no destructive
 overwrite. This is local verification evidence, not a CI service — CI
 runs the storage-agnostic Python test suite (`tests/test_persistence.py`)
