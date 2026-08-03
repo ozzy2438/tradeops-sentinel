@@ -22,8 +22,18 @@ The evaluator implements these eight families, in the contract-defined order:
 
 No LLM, ML score, arbitrary SQL, database write, booking write, or production
 rule activation is present in this package. TS-12 oracle/import isolation,
-TS-13 replay-invariant work as a separate milestone, generator expansion,
-cloud, UI, and action execution remain out of scope.
+generator expansion, cloud, UI, and action execution remain out of scope.
+
+## TS-13 invariants
+
+The locked-input invariant suite is committed at
+`evidence/ts13-invariants.json` and covers both FX products using the existing
+fixture corpus. It proves byte-identical reruns for the same version-pinned
+context, stable output when the source tuple is presented in another order,
+idempotent same-content transport replay at the inbox boundary, and exactly
+one typed `DUPLICATE_SOURCE_CONFLICT` break for distinct content under one
+source identity/version. The pure evaluator emits reconciliation runs and
+breaks only; it has no case-write side effect.
 
 ## API
 
