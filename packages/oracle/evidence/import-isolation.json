@@ -59,6 +59,18 @@
       "packages.persistence.inbox"
     ],
     [
+      "packages.persistence.adapter",
+      "packages.contracts.hashing"
+    ],
+    [
+      "packages.persistence.adapter",
+      "packages.contracts.models"
+    ],
+    [
+      "packages.persistence.adapter",
+      "packages.persistence.inbox"
+    ],
+    [
       "packages.persistence.assembler",
       "packages.contracts.hashing"
     ],
@@ -121,6 +133,7 @@
     "packages.oracle.import_graph",
     "packages.oracle.models",
     "packages.persistence",
+    "packages.persistence.adapter",
     "packages.persistence.assembler",
     "packages.persistence.inbox",
     "packages.reconciliation",

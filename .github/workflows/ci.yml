@@ -96,6 +96,102 @@ jobs:
       - name: Fresh PostgreSQL migration and append-only tests
         run: pytest -q tests/integration
 
+  product-e2e:
+    name: product-e2e
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tradeops_product
+          POSTGRES_PASSWORD: tradeops_product
+          POSTGRES_USER: tradeops_product
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U tradeops_product -d tradeops_product"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TRADEOPS_TEST_DATABASE_URL: postgresql://tradeops_product:tradeops_product@localhost:5433/tradeops_product
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install API + test dependencies
+        run: pip install -e ".[dev]"
+      - name: Product API and end-to-end tests
+        run: pytest -q tests/integration/test_product_e2e.py
+
+  docker-build-and-smoke:
+    name: docker-build-and-smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tradeops_smoke
+          POSTGRES_PASSWORD: tradeops_smoke
+          POSTGRES_USER: tradeops_smoke
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U tradeops_smoke -d tradeops_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f Dockerfile.api -t tradeops-api:ci .
+      - name: Build dashboard image
+        run: docker build -f Dockerfile.dashboard -t tradeops-dashboard:ci .
+      # Container startup smoke test: the API must come up, report healthy,
+      # migrate the database and answer an authenticated request end to end.
+      - name: API container startup smoke test
+        run: |
+          set -euo pipefail
+          # Generated per run: no literal key is ever written into this file.
+          SMOKE_KEY="$(openssl rand -hex 24)"
+          echo "SMOKE_KEY=$SMOKE_KEY" >> "$GITHUB_ENV"
+          docker run -d --name api-smoke --network host \
+            -e DATABASE_URL='postgresql://tradeops_smoke:tradeops_smoke@localhost:5434/tradeops_smoke' \
+            -e TRADEOPS_API_KEY="$SMOKE_KEY" \
+            tradeops-api:ci
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8000/health >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8000/health
+          echo
+          curl -fsS http://localhost:8000/ready
+          echo
+          # authenticated call must succeed; unauthenticated must be rejected
+          curl -fsS -H "X-API-Key: $SMOKE_KEY" http://localhost:8000/summary >/dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/summary)
+          test "$code" = "401" || { echo "unauthenticated request was not rejected: $code"; exit 1; }
+          echo "API container smoke test passed"
+      - name: Dashboard container startup smoke test
+        run: |
+          set -euo pipefail
+          docker run -d --name dash-smoke --network host \
+            -e API_BASE_URL='http://localhost:8000' \
+            -e TRADEOPS_API_KEY="$SMOKE_KEY" \
+            tradeops-dashboard:ci
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:8501/_stcore/health >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://localhost:8501/_stcore/health
+          echo "Dashboard container smoke test passed"
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker logs api-smoke || true
+          docker logs dash-smoke || true
+
   ai-authorship-trailer-check:
     name: ai-authorship-trailer-check
     runs-on: ubuntu-latest

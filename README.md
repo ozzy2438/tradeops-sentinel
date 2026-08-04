@@ -2,12 +2,90 @@
 
 **Global Markets Trade-Break Automation & Regulatory Evidence Platform — reference implementation.**
 
-> **Status: deterministic core implemented and locally/CI tested.** Contracts,
-> synthetic generation, policy-enforced canonical assembly, append-only
-> PostgreSQL DDL, reconciliation, independent oracle and packaging gates are
-> present. A transactional PostgreSQL adapter, TS-14 audit ledger, TS-15
-> release-evidence gate, application runtime, cloud deployment, LLM workflow
-> and executor remain incomplete or out of the current implemented slice.
+> **Status: production-candidate FX Spot/Forward reconciliation MVP built on a
+> production-oriented deterministic reconciliation reference implementation.**
+> The product runs end to end: load synthetic FX data, assemble policy-enforced
+> canonical trade state, run deterministic reconciliation, and inspect detected
+> breaks with full provenance in a dashboard. TS-14 audit ledger, TS-15
+> release-evidence gate, the LLM workflow and the Playwright executor remain
+> out of scope.
+
+## Run the product
+
+```bash
+cp .env.example .env      # then fill in DATABASE_URL and TRADEOPS_API_KEY
+docker compose up --build
+```
+
+| Surface | URL |
+| --- | --- |
+| API documentation | <http://localhost:8000/docs> |
+| Dashboard | <http://localhost:8501> |
+
+In the dashboard: **Load Synthetic Demo Data** → **Run Reconciliation** →
+inspect breaks and open **Break detail** for expected/observed values and
+source provenance.
+
+![Dashboard overview](docs/screenshots/01-dashboard-overview.png)
+
+![Break detail](docs/screenshots/02-break-detail.png)
+
+A verbatim end-to-end transcript is in [`docs/DEMO_RECORD.md`](docs/DEMO_RECORD.md).
+
+## Architecture
+
+```
+        ┌────────────────────┐
+        │  Streamlit         │   HTTP + X-API-Key only.
+        │  dashboard :8501   │   Holds no database credentials.
+        └─────────┬──────────┘
+                  │
+        ┌─────────▼──────────┐
+        │  FastAPI :8000     │   9 endpoints, API-key guard, typed errors.
+        └─────────┬──────────┘
+                  │
+        ┌─────────▼──────────────────────────────────────────┐
+        │  apps/api/service.py                               │
+        │  demo load → canonical assembly → reconciliation    │
+        └─────────┬──────────────────────────────────────────┘
+                  │  consumes the deterministic core unchanged
+   ┌──────────────┼───────────────┬──────────────────┐
+   │              │               │                  │
+┌──▼─────────┐ ┌──▼───────────┐ ┌─▼──────────────┐ ┌─▼─────────────┐
+│ generator  │ │ contracts +  │ │ persistence    │ │ reconciliation│
+│ synthetic  │ │ hashing +    │ │ source-of-     │ │ engine        │
+│ FX corpus  │ │ validation   │ │ truth policy   │ │ 8 families    │
+└────────────┘ └──────────────┘ └───┬────────────┘ └───────────────┘
+                                    │
+                        ┌───────────▼────────────┐
+                        │ packages/persistence/  │
+                        │ adapter.py (psycopg 3) │
+                        └───────────┬────────────┘
+                                    │
+                        ┌───────────▼────────────┐
+                        │  Neon PostgreSQL       │
+                        │  append-only tables    │
+                        └────────────────────────┘
+```
+
+## Neon setup
+
+Use an **isolated development branch** (`tradeops-dev`), never the production
+branch. From the Neon console: create the branch, then copy its connection
+string into `.env`:
+
+```bash
+DATABASE_URL=postgresql://<user>:<password>@<host>/<db>?sslmode=require
+TRADEOPS_API_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+```
+
+`.env` is git-ignored and never baked into an image. Credentials are passed to
+containers as environment variables only. If a connection string is ever shown
+or pasted anywhere, **reset the password in Neon and use the new one** — treat
+the old value as compromised.
+
+Migrations run automatically at API startup (`TRADEOPS_AUTO_MIGRATE=true`) and
+are idempotent.
 
 ## What this is
 
@@ -35,10 +113,12 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 ## Repository structure
 
 ```
+apps/api/              # FastAPI product service (9 endpoints)
+apps/dashboard/        # Streamlit dashboard (calls the API only)
 apps/app/              # planned modular application runtime seam (README only)
 packages/contracts/    # canonical model + schemas (ADR-001/002/005) — Epic E2
 packages/generator/    # deterministic synthetic FX generator (ADR-006) — Epic E3
-packages/persistence/  # inbox semantics, SOT-enforced canonical assembly + PostgreSQL DDL
+packages/persistence/  # inbox semantics, SOT-enforced canonical assembly, psycopg 3 adapter + DDL
 packages/reconciliation/ # deterministic reconciliation engine (ADR-002) — Epic E5
 packages/oracle/       # independently implemented reconciliation oracle + import isolation
 packages/evidence/     # planned TS-14 hash-chain/verifier seam (README only)
@@ -90,3 +170,50 @@ Issues and PRs are labelled `status:planned`, `status:implemented`, `status:loca
 ## License
 
 See [LICENSE](LICENSE).
+
+## Known limitations
+
+- **`POST_ACTION_VERIFICATION_FAILURE` is not surfaced by the running product.**
+  The reconciliation engine supports all eight approved break families (proven
+  by the unchanged TS-11 suite), but this family requires an executed action
+  with pre/post read-back — the ADR-011 Playwright executor, which is out of
+  scope here. The product pipeline therefore detects **seven of eight** families.
+  This is stated rather than papered over.
+- Linkage decisions are derived deterministically from observation content, not
+  produced by a dedicated linkage engine (out of scope).
+- Conflicting deliveries are quarantined in `source_event_conflicts` rather than
+  processed by a full dead-letter workflow.
+- No migration-version ledger; migrations are idempotent and applied in order at
+  startup, but the database does not record which have run.
+- Single synthetic tenant (`tenant_demo`) across two portfolios. Multi-tenant
+  routing, RBAC, OAuth/JWT and user management are all out of scope.
+- Concurrency: canonical version allocation is fail-closed (a race raises a
+  unique violation) but has no retry helper.
+- The distribution claims the generic top-level import name `packages`; a local
+  `packages/` directory in the working directory will shadow it.
+
+## Security statement
+
+- **Synthetic demonstration data only — no real banking or customer data**, ever.
+- Credentials are supplied exclusively through environment variables
+  (`DATABASE_URL`, `TRADEOPS_API_KEY`). `.env` is git-ignored; no secret is
+  committed, logged, or baked into an image. Secret scanning runs in CI.
+- All authenticated endpoints require `X-API-Key`. A missing server-side key
+  fails closed (503) rather than defaulting open.
+- Error responses are typed and never expose stack traces, connection strings,
+  or driver internals.
+- Source ingestion is tamper-evident: every observation's content hash is
+  recomputed and verified before any replay/conflict decision, so a forged hash
+  cannot mask altered content.
+- `source_event_inbox`, `canonical_trade_state_versions`, `reconciliation_runs`,
+  `trade_breaks` and `source_event_conflicts` are append-only at the database
+  boundary, guarded against `UPDATE`, `DELETE` and `TRUNCATE`.
+- Containers run as non-root users.
+
+## Project classification
+
+**Production-candidate FX Spot/Forward reconciliation MVP built on a
+production-oriented deterministic reconciliation reference implementation.**
+
+This is not a live banking platform, and it is not connected to any real market,
+customer, or settlement system.
