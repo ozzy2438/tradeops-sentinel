@@ -352,12 +352,23 @@ def breaks(
     run_id: str | None = None,
     limit: int = Query(500, ge=1, le=2000),
 ) -> list[BreakRow]:
+    """Breaks for one reconciliation run.
+
+    Without an explicit ``run_id`` this defaults to the latest completed run.
+    trade_breaks is append-only, so an unscoped query would silently include
+    every historical run's rows. Pass ``run_id`` explicitly to inspect a
+    specific historical run -- see GET /runs for the available ids.
+    """
+
+    effective_run_id = run_id or adapter.latest_completed_run_id(**SCOPE)
+    if effective_run_id is None:
+        return []
     rows = adapter.query_breaks(
         **SCOPE,
         product_type=product_type,
         break_family=break_family,
         state=state,
-        run_id=run_id,
+        run_id=effective_run_id,
         limit=limit,
     )
     return [BreakRow(**row) for row in rows]
@@ -388,7 +399,15 @@ def trade_detail(adapter: Adapter, _: Guard, trade_id: str) -> TradeDetail:
     row = adapter.canonical_state_document(**SCOPE, trade_id=trade_id)
     if row is None:
         raise HTTPException(status_code=404, detail="trade not found")
-    related = adapter.query_breaks(**SCOPE, limit=2000)
+    # Related breaks are scoped to the latest run for the same reason as the
+    # default /breaks view: without it, a trade broken in every historical
+    # run would show one duplicate entry per run instead of its current state.
+    latest_run_id = adapter.latest_completed_run_id(**SCOPE)
+    related = (
+        adapter.query_breaks(**SCOPE, run_id=latest_run_id, limit=2000)
+        if latest_run_id is not None
+        else []
+    )
     return TradeDetail(
         trade_id=str(row["trade_id"]),
         canonical_state_version=int(row["canonical_state_version"]),

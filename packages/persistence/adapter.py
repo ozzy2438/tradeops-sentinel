@@ -476,18 +476,64 @@ class PostgresAdapter:
             ).fetchone()
         return dict(row) if row else None
 
-    def canonical_trade_count(self, *, tenant_id: str, portfolio_ids: Sequence[str]) -> int:
-        with self.connect() as connection:
-            row = connection.execute(
-                "SELECT count(DISTINCT trade_id) AS total FROM canonical_trade_state_versions "
-                "WHERE tenant_id = %s AND portfolio_id = ANY(%s)",
-                (tenant_id, list(portfolio_ids)),
-            ).fetchone()
-        return int(row["total"]) if row else 0
-
     # ------------------------------------------------------------------
     # runs and breaks
     # ------------------------------------------------------------------
+    def latest_completed_run_id(
+        self, *, tenant_id: str, portfolio_ids: Sequence[str]
+    ) -> str | None:
+        """Return the run_id of the most recently completed reconciliation run.
+
+        A reconciliation run writes one ``reconciliation_runs`` row per
+        portfolio under the same ``run_id``, so this identifies *which* run is
+        latest -- callers then scope trades/breaks to that run_id rather than
+        aggregating across every historical run ever persisted.
+
+        Ordered by ``completed_at DESC`` with ``row_id DESC`` as a tiebreaker:
+        ``row_id`` is a monotonically increasing identity column, so selection
+        stays deterministic even when two runs complete within the same
+        wall-clock second -- it never relies on timestamp resolution alone.
+        """
+
+        with self.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT run_id
+                FROM reconciliation_runs
+                WHERE tenant_id = %s AND portfolio_id = ANY(%s) AND status = 'COMPLETED'
+                ORDER BY completed_at DESC, row_id DESC
+                LIMIT 1
+                """,
+                (tenant_id, list(portfolio_ids)),
+            ).fetchone()
+        return str(row["run_id"]) if row else None
+
+    def runs_by_run_id(
+        self, *, tenant_id: str, portfolio_ids: Sequence[str], run_id: str
+    ) -> list[dict[str, Any]]:
+        """Return every per-portfolio run row sharing one run_id.
+
+        One reconciliation invocation produces one row per portfolio; this
+        lets a caller sum trades_evaluated/clean/broken/break_count across
+        the portfolios of a single run without re-deriving them from
+        canonical state or trade_breaks.
+        """
+
+        with self.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT run_id, run_version, portfolio_id, config_id, config_version,
+                       config_hash, detection_rule_version, trades_evaluated,
+                       observations_ingested, clean_trades, broken_trades,
+                       break_count, status, started_at, completed_at
+                FROM reconciliation_runs
+                WHERE tenant_id = %s AND portfolio_id = ANY(%s) AND run_id = %s
+                ORDER BY portfolio_id
+                """,
+                (tenant_id, list(portfolio_ids), run_id),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def persist_run(
         self,
         *,
@@ -662,13 +708,26 @@ class PostgresAdapter:
         return dict(row) if row else None
 
     def break_family_counts(
-        self, *, tenant_id: str, portfolio_ids: Sequence[str]
+        self, *, tenant_id: str, portfolio_ids: Sequence[str], run_id: str | None = None
     ) -> dict[str, int]:
+        """Break counts by family, optionally scoped to one run_id.
+
+        Without ``run_id`` this aggregates every historical break ever
+        persisted for the scope -- callers displaying a single reconciliation
+        result (e.g. the product summary) must pass the run_id they mean, or
+        family counts silently accumulate across every past run.
+        """
+
+        clauses = ["tenant_id = %s", "portfolio_id = ANY(%s)"]
+        params: list[Any] = [tenant_id, list(portfolio_ids)]
+        if run_id:
+            clauses.append("run_id = %s")
+            params.append(run_id)
         with self.connect() as connection:
             rows = connection.execute(
-                "SELECT break_family, count(*) AS total FROM trade_breaks "
-                "WHERE tenant_id = %s AND portfolio_id = ANY(%s) GROUP BY break_family",
-                (tenant_id, list(portfolio_ids)),
+                f"SELECT break_family, count(*) AS total FROM trade_breaks "
+                f"WHERE {' AND '.join(clauses)} GROUP BY break_family",  # noqa: S608
+                params,
             ).fetchall()
         return {str(row["break_family"]): int(row["total"]) for row in rows}
 
@@ -684,12 +743,3 @@ class PostgresAdapter:
                 (tenant_id, list(portfolio_ids)),
             ).fetchall()
         return {str(row["product_type"]): int(row["total"]) for row in rows if row["product_type"]}
-
-    def broken_trade_ids(self, *, tenant_id: str, portfolio_ids: Sequence[str]) -> set[str]:
-        with self.connect() as connection:
-            rows = connection.execute(
-                "SELECT DISTINCT trade_id FROM trade_breaks "
-                "WHERE tenant_id = %s AND portfolio_id = ANY(%s)",
-                (tenant_id, list(portfolio_ids)),
-            ).fetchall()
-        return {str(row["trade_id"]) for row in rows}
