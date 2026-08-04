@@ -93,6 +93,8 @@ A production-like reference implementation demonstrating how deterministic recon
 
 This is **not** an autonomous trading system. AI investigates, classifies, and recommends — it never approves, signs, dispatches, or executes a material change on its own. See [`docs/adr/`](docs/adr/) for the full architecture decision record set and the [MVP Release Charter](docs/CHARTER_REFERENCE.md) for the approved scope.
 
+The one implemented, end-to-end demonstration of that AI/maker-checker/signed-instruction/read-back-verified loop — for exactly one break family and one field — is documented in [`docs/AI_REMEDIATION.md`](docs/AI_REMEDIATION.md).
+
 ## Claims that must not be made about this project
 
 Per the approved MVP Release Charter (§27), the following claims are **forbidden** unless a specific, tested, implemented mechanism backs them for the exact environment described:
@@ -113,7 +115,7 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 ## Repository structure
 
 ```
-apps/api/              # FastAPI product service (9 endpoints)
+apps/api/              # FastAPI product service (9 product endpoints + 5 remediation endpoints)
 apps/dashboard/        # Streamlit dashboard (calls the API only)
 apps/app/              # planned modular application runtime seam (README only)
 packages/contracts/    # canonical model + schemas (ADR-001/002/005) — Epic E2

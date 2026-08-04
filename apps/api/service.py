@@ -8,18 +8,25 @@ consumed as-is and are not modified.
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import logging
+import secrets
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from typing import Any, TypedDict
 
+from packages.contracts import compute_observation_content_hash
 from packages.contracts.models import (
     Actor,
     BookingObservation,
     CandidateLink,
+    CanonicalTradeState,
     ConfirmationObservation,
     ExecutionObservation,
     LinkageDecision,
+    SourceOfTruthPolicy,
     TradeBreak,
     TradeCaptureObservation,
 )
@@ -32,6 +39,7 @@ from packages.persistence import (
 from packages.persistence.adapter import IngestSummary, PostgresAdapter
 from packages.reconciliation import ReconciliationContext, ReconciliationEngine
 from packages.reconciliation.config import fixture_config
+from packages.reconciliation.models import ReconciliationRun
 
 LOGGER = logging.getLogger("tradeops.api.service")
 
@@ -66,6 +74,7 @@ SCOPE: Scope = {"tenant_id": DEMO_TENANT_ID, "portfolio_ids": DEMO_PORTFOLIO_IDS
 
 _ASSEMBLER_ACTOR = Actor(identity_type="SYSTEM", actor_id="canonical_assembler")
 _LINKAGE_ACTOR = Actor(identity_type="SYSTEM", actor_id="linkage_engine")
+_REMEDIATION_ACTOR = Actor(identity_type="SYSTEM", actor_id="remediation_executor")
 
 
 class DemoScopeError(RuntimeError):
@@ -174,6 +183,77 @@ def _linkage_decision(
     )
 
 
+def _reconcile_lineage_group(
+    group: list[dict[str, Any]],
+    *,
+    policy: SourceOfTruthPolicy,
+    engine: ReconciliationEngine,
+    run_id: str,
+    index: int,
+    canonical_state_version: int = 1,
+) -> tuple[CanonicalTradeState, ReconciliationRun]:
+    """Assemble canonical state for one lineage group and reconcile it.
+
+    The single per-trade unit of work shared by ``run_reconciliation`` (every
+    lineage group, once, always version 1) and ``rerun_trade_reconciliation``
+    (exactly one lineage group, on demand, at whatever version comes next for
+    that trade) -- so a scoped post-action rerun exercises the identical
+    deterministic path a full product run does, not a parallel
+    reimplementation of it.
+
+    The engine compares its policy-authoritative baseline against every other
+    observation in the set and flags a break on the first divergent one -- it
+    does not resolve "latest per source system" the way the canonical
+    assembler does. A remediation correction adds a new BOOKING revision that
+    *supersedes* the one it corrects (``supersedes_observation_id``, set by
+    ``ingest_corrected_booking_observation``); excluding what has been
+    explicitly superseded here means both a scoped post-action rerun and any
+    later full-corpus ``run_reconciliation`` pass keep seeing the trade as
+    resolved, rather than the fix only holding until the next batch run.
+    ``supersedes_observation_id`` carries no other filtering behaviour
+    anywhere else in this codebase, so this is a no-op for every one of the
+    demo corpus's other lineage groups, none of which ever sets it.
+    """
+
+    superseded_ids = {
+        raw["supersedes_observation_id"] for raw in group if raw.get("supersedes_observation_id")
+    }
+    if superseded_ids:
+        group = [raw for raw in group if raw["observation_id"] not in superseded_ids]
+
+    observations = tuple(
+        OBSERVATION_MODELS[str(raw["observation_kind"])].model_validate(raw) for raw in group
+    )
+    trade_id = Counter(item.source_business_key for item in observations).most_common(1)[0][0]
+    selection = resolve_field_selection(
+        trade_id=trade_id,
+        source_observations=observations,
+        source_of_truth_policy=policy,
+    )
+    canonical = assemble_canonical_state(
+        trade_id=trade_id,
+        canonical_state_version=canonical_state_version,
+        field_selection=selection,
+        source_observations=observations,
+        source_of_truth_policy=policy,
+        correlation_id=observations[0].correlation_id,
+        actor=_ASSEMBLER_ACTOR,
+    )
+    context = ReconciliationContext(
+        reconciliation_run_id=f"{run_id}_{index:04d}",
+        run_version=1,
+        canonical_state=canonical,
+        source_observations=observations,
+        linkage_decision=_linkage_decision(
+            run_id=f"{run_id}_{index:04d}",
+            trade_id=trade_id,
+            canonical=canonical,
+            observations=observations,
+        ),
+    )
+    return canonical, engine.run(context)
+
+
 def run_reconciliation(adapter: PostgresAdapter) -> dict[str, Any]:
     """Assemble canonical state per lineage group and reconcile every trade."""
 
@@ -208,40 +288,11 @@ def run_reconciliation(adapter: PostgresAdapter) -> dict[str, Any]:
         observations_by_portfolio[str(raw["portfolio_id"])] += 1
 
     for index, (lineage_id, group) in enumerate(sorted(by_lineage.items())):
-        observations = tuple(
-            OBSERVATION_MODELS[str(raw["observation_kind"])].model_validate(raw) for raw in group
-        )
-        trade_id = Counter(item.source_business_key for item in observations).most_common(1)[0][0]
-        selection = resolve_field_selection(
-            trade_id=trade_id,
-            source_observations=observations,
-            source_of_truth_policy=policy,
-        )
-        canonical = assemble_canonical_state(
-            trade_id=trade_id,
-            canonical_state_version=1,
-            field_selection=selection,
-            source_observations=observations,
-            source_of_truth_policy=policy,
-            correlation_id=observations[0].correlation_id,
-            actor=_ASSEMBLER_ACTOR,
+        canonical, result = _reconcile_lineage_group(
+            group, policy=policy, engine=engine, run_id=run_id, index=index
         )
         canonical_states.append(canonical)
         trades_by_portfolio[canonical.portfolio_id] += 1
-
-        context = ReconciliationContext(
-            reconciliation_run_id=f"{run_id}_{index:04d}",
-            run_version=1,
-            canonical_state=canonical,
-            source_observations=observations,
-            linkage_decision=_linkage_decision(
-                run_id=f"{run_id}_{index:04d}",
-                trade_id=trade_id,
-                canonical=canonical,
-                observations=observations,
-            ),
-        )
-        result = engine.run(context)
         if result.breaks:
             broken_by_portfolio[canonical.portfolio_id] += 1
             breaks_by_portfolio[canonical.portfolio_id].extend(result.breaks)
@@ -286,6 +337,163 @@ def run_reconciliation(adapter: PostgresAdapter) -> dict[str, Any]:
         "broken_trades": broken_trades,
         "break_count": len(all_breaks),
         "config_hash": config.content_hash,
+    }
+
+
+def ingest_corrected_booking_observation(
+    adapter: PostgresAdapter, *, trade_id: str, field_path: str, approved_value: str
+) -> str:
+    """Feed an approved legacy-booking correction back in as a new BOOKING
+    observation, the same way any other source revision arrives.
+
+    This is what makes a remediation correction actually visible to
+    reconciliation: ``MockLegacyBookingAdapter`` only mutates the remediation
+    slice's own mock ledger, which the deterministic engine never reads. The
+    engine only ever sees ``source_event_inbox`` rows, so the corrected value
+    must be re-delivered through the exact same ingestion path every other
+    source system uses -- a new observation superseding the prior BOOKING
+    revision, source-of-truth-policy-eligible by virtue of its higher
+    ``source_version`` (see ``_resolved_observation`` in
+    ``packages.persistence.assembler``), not a direct canonical-state patch.
+
+    Returns the new observation_id.
+    """
+
+    if not field_path.startswith("/payload/"):
+        raise ValueError(f"unsupported field_path {field_path!r}")
+    field_name = field_path.removeprefix("/payload/")
+
+    raws = adapter.observation_documents(**SCOPE)
+    candidates = [
+        raw
+        for raw in raws
+        if raw["observation_kind"] == "BOOKING" and raw["source_business_key"] == trade_id
+    ]
+    if not candidates:
+        raise ValueError(f"no BOOKING observation found for trade_id={trade_id!r}")
+    latest = max(candidates, key=lambda raw: int(raw["source_version"]))
+
+    document = copy.deepcopy(latest)
+    now = datetime.now(UTC)
+    new_observation_id = f"obs_booking_correction_{secrets.token_hex(12)}"
+
+    document["observation_id"] = new_observation_id
+    document["source_event_id"] = f"evt_correction_{secrets.token_hex(12)}"
+    document["source_version"] = str(int(latest["source_version"]) + 1)
+    document["source_sequence"] = int(latest["source_sequence"]) + 1
+    document["event_time"] = now
+    document["effective_time"] = now
+    document["ingest_time"] = now
+    document["actor"] = {
+        "identity_type": _REMEDIATION_ACTOR.identity_type,
+        "actor_id": _REMEDIATION_ACTOR.actor_id,
+    }
+    document["supersedes_observation_id"] = latest["observation_id"]
+    document["supersession_reason"] = "CORRECTION"
+
+    payload = document["payload"]
+    current_amount = payload[field_name]
+    if not isinstance(current_amount, dict) or "value" not in current_amount:
+        raise ValueError(f"payload field {field_name!r} is not a correctable amount field")
+    payload[field_name] = {**current_amount, "value": approved_value}
+    payload["booking_version"] = int(payload["booking_version"]) + 1
+    payload["last_updated_time"] = now
+    fingerprint_source = {
+        key: value for key, value in payload.items() if key != "record_fingerprint"
+    }
+    payload["record_fingerprint"] = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                fingerprint_source,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                default=str,
+            ).encode("utf-8")
+        ).hexdigest()
+    )
+    document["content_hash"] = compute_observation_content_hash(document)
+
+    observation = BookingObservation.model_validate(document)
+    adapter.ingest_observations([observation])
+    LOGGER.info(
+        "remediation_booking_correction_ingested",
+        extra={
+            "trade_id": trade_id,
+            "observation_id": new_observation_id,
+            "field_path": field_path,
+        },
+    )
+    return new_observation_id
+
+
+def rerun_trade_reconciliation(adapter: PostgresAdapter, *, trade_id: str) -> dict[str, Any]:
+    """Re-assemble canonical state and re-run reconciliation for one trade.
+
+    Used by the remediation flow's post-action verification (step 10 of the
+    controlled-AI remediation slice): after a signed, approved correction has
+    been applied and a corrected observation ingested, this confirms the
+    specific break is resolved by re-running the exact same deterministic
+    pipeline ``run_reconciliation`` uses -- not a parallel or simplified
+    reimplementation of it -- scoped to just this trade's lineage group. It
+    persists the next canonical_state_version for the trade, but does not
+    create a new product-wide ``reconciliation_runs`` history entry; the
+    full-batch run history and this scoped verification are deliberately
+    separate concerns.
+    """
+
+    raws = adapter.observation_documents(**SCOPE)
+    raws = raws + adapter.conflict_documents(**SCOPE)
+    group = [
+        raw
+        for raw in raws
+        if raw["source_business_key"] == trade_id
+        or raw["payload"].get("source_trade_id") == trade_id
+    ]
+    if not group:
+        raise ValueError(f"no observations found for trade_id={trade_id!r}")
+
+    portfolio_id = str(group[0]["portfolio_id"])
+    existing = adapter.canonical_state_document(
+        tenant_id=SCOPE["tenant_id"], portfolio_ids=(portfolio_id,), trade_id=trade_id
+    )
+    next_version = int(existing["canonical_state_version"]) + 1 if existing else 1
+
+    policy = load_mvp_source_of_truth_policy()
+    config = fixture_config()
+    engine = ReconciliationEngine(config)
+    evaluated_at = datetime.now(UTC)
+    run_stamp = evaluated_at.strftime("%Y%m%d%H%M%S")
+
+    canonical, result = _reconcile_lineage_group(
+        group,
+        policy=policy,
+        engine=engine,
+        run_id=f"rerun_{run_stamp}",
+        index=0,
+        canonical_state_version=next_version,
+    )
+    adapter.persist_canonical_states([canonical])
+
+    families = sorted({item.family for item in result.breaks})
+    LOGGER.info(
+        "trade_reconciliation_rerun",
+        extra={
+            "trade_id": trade_id,
+            "result": result.result,
+            "break_families": families,
+            "canonical_state_version": next_version,
+        },
+    )
+    return {
+        "trade_id": trade_id,
+        "canonical_state_version": next_version,
+        "result": result.result,
+        "break_families": families,
+        "breaks": [item.model_dump(mode="json") for item in result.breaks],
+        "content_hash": canonical.content_hash,
+        "evaluated_at": evaluated_at.isoformat(),
     }
 
 

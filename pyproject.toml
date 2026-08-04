@@ -28,6 +28,7 @@ dev = [
     "mypy>=1.11",
     "psycopg[binary]>=3.2",
     "pytest>=8.0",
+    "anthropic>=0.40",
 ]
 
 [tool.ruff]
@@ -47,6 +48,7 @@ packages = [
     "packages.persistence",
     "packages.reconciliation",
     "packages.oracle",
+    "packages.remediation",
     "apps.api",
 ]
 mypy_path = "src"
@@ -69,3 +71,4 @@ namespaces = true
 "packages.oracle" = ["evidence/*.json"]
 "packages.persistence" = ["ddl/*.sql"]
 "packages.reconciliation" = ["evidence/*.json"]
+"packages.remediation" = ["runbooks/*.md"]
