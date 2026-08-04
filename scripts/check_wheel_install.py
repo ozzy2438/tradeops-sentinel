@@ -24,6 +24,7 @@ REQUIRED_WHEEL_MEMBERS = (
     "packages/contracts/schemas/common.schema.json",
     "packages/persistence/ddl/0001_canonical_persistence.sql",
     "packages/persistence/ddl/0002_p1_production_boundaries.sql",
+    "packages/persistence/ddl/0003_product_runtime.sql",
 )
 
 
