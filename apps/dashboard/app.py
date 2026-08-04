@@ -106,6 +106,22 @@ if not summary:
     st.stop()
 
 st.subheader("Reconciliation summary")
+
+# Every metric below is scoped to exactly one reconciliation run -- the latest
+# completed one. Historical runs are never blended into this view (see the
+# "Latest reconciliation runs" table for full history), so which run is being
+# shown must be unambiguous.
+latest_run_id = summary.get("latest_run_id")
+if latest_run_id:
+    st.info(
+        f"Showing the **latest completed run**: `{latest_run_id}` — "
+        f"completed at {summary.get('latest_run_completed_at') or '—'}. "
+        "Earlier runs remain stored and are never mixed into these totals.",
+        icon="🕒",
+    )
+else:
+    st.info("No completed reconciliation run yet — showing zero totals.", icon="🕒")
+
 m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Observations", f"{summary['total_observations']:,}")
 m2.metric("Canonical trades", f"{summary['total_trades']:,}")

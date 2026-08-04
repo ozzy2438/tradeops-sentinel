@@ -290,23 +290,54 @@ def run_reconciliation(adapter: PostgresAdapter) -> dict[str, Any]:
 
 
 def build_summary(adapter: PostgresAdapter) -> dict[str, Any]:
-    """Aggregate totals for the dashboard landing view."""
+    """Aggregate totals for the dashboard landing view.
 
-    trades = adapter.canonical_trade_count(**SCOPE)
-    broken = adapter.broken_trade_ids(**SCOPE)
-    families = adapter.break_family_counts(**SCOPE)
-    latest = adapter.latest_run(**SCOPE)
+    Scoped to the latest *completed* reconciliation run, not to all history.
+    reconciliation_runs/trade_breaks are append-only: every run's rows survive
+    indefinitely, so summing across the whole scope would silently accumulate
+    every past run's breaks into one ever-growing total. The product's default
+    view is "what does the latest run say", with full history still reachable
+    via GET /runs and GET /breaks?run_id=<historical-run>.
+    """
+
+    run_id = adapter.latest_completed_run_id(**SCOPE)
+    total_observations = adapter.observation_count(**SCOPE)
+    products = adapter.product_counts(**SCOPE)
+
+    if run_id is None:
+        # No successful run yet: a controlled empty result, not an error.
+        return {
+            "tenant_id": DEMO_TENANT_ID,
+            "portfolio_ids": list(DEMO_PORTFOLIO_IDS),
+            "total_observations": total_observations,
+            "total_trades": 0,
+            "broken_trades": 0,
+            "clean_trades": 0,
+            "total_breaks": 0,
+            "breaks_by_family": {},
+            "trades_by_product": products,
+            "latest_run_id": None,
+            "latest_run_completed_at": None,
+            "config_hash": None,
+        }
+
+    # One reconciliation invocation persists one reconciliation_runs row per
+    # portfolio under the same run_id; summing their own stored counters is
+    # the authoritative per-run total, not re-derived via DISTINCT queries
+    # that would coincidentally look right only because reruns are idempotent.
+    portfolio_runs = adapter.runs_by_run_id(**SCOPE, run_id=run_id)
+    families = adapter.break_family_counts(**SCOPE, run_id=run_id)
     return {
         "tenant_id": DEMO_TENANT_ID,
         "portfolio_ids": list(DEMO_PORTFOLIO_IDS),
-        "total_observations": adapter.observation_count(**SCOPE),
-        "total_trades": trades,
-        "broken_trades": len(broken),
-        "clean_trades": max(trades - len(broken), 0),
-        "total_breaks": sum(families.values()),
+        "total_observations": total_observations,
+        "total_trades": sum(row["trades_evaluated"] for row in portfolio_runs),
+        "broken_trades": sum(row["broken_trades"] for row in portfolio_runs),
+        "clean_trades": sum(row["clean_trades"] for row in portfolio_runs),
+        "total_breaks": sum(row["break_count"] for row in portfolio_runs),
         "breaks_by_family": families,
-        "trades_by_product": adapter.product_counts(**SCOPE),
-        "latest_run_id": str(latest["run_id"]) if latest else None,
-        "latest_run_completed_at": latest["completed_at"] if latest else None,
-        "config_hash": str(latest["config_hash"]) if latest else None,
+        "trades_by_product": products,
+        "latest_run_id": run_id,
+        "latest_run_completed_at": max(row["completed_at"] for row in portfolio_runs),
+        "config_hash": str(portfolio_runs[0]["config_hash"]),
     }

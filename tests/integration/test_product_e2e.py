@@ -7,6 +7,7 @@ Local unit-only runs skip this module.
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -89,6 +90,22 @@ def test_health_needs_no_database_and_no_key(client: Any) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+# 13. no successful run yet -> a controlled empty result, never an error.
+# Runs before any demo load or reconciliation in this module, on pristine
+# migrated-but-empty tables.
+def test_no_completed_run_returns_a_controlled_empty_summary_and_break_list(client: Any) -> None:
+    summary = client.get("/summary", headers=_auth()).json()
+    assert summary["latest_run_id"] is None
+    assert summary["latest_run_completed_at"] is None
+    assert summary["config_hash"] is None
+    assert summary["total_breaks"] == 0
+    assert summary["total_trades"] == 0
+    assert summary["breaks_by_family"] == {}
+
+    breaks = client.get("/breaks", headers=_auth()).json()
+    assert breaks == []
 
 
 # 8. invalid API key is rejected
@@ -255,6 +272,105 @@ def test_no_data_is_returned_outside_the_demo_scope(client: Any) -> None:
     assert all(row["break_id"] != "break_foreign_tenant" for row in rows)
     assert client.get("/breaks/break_foreign_tenant", headers=_auth()).status_code == 404
     assert client.get("/trades/trade_other", headers=_auth()).status_code == 404
+
+
+# Regression: reconciliation_runs/trade_breaks are append-only, so a second
+# run must add a second historical run and 90 more historical break rows --
+# while every default-scoped view (summary, default breaks list, and
+# everything the dashboard consumes) keeps showing only the latest run's 90,
+# and each historical run remains individually inspectable by its own run_id.
+def test_second_reconciliation_run_preserves_history_but_default_view_shows_latest_only(
+    client: Any,
+) -> None:
+    assert DATABASE_URL is not None
+    demo_scope_filter = (
+        "tenant_id = 'tenant_demo' AND portfolio_id IN ('portfolio_london', 'portfolio_sydney')"
+    )
+
+    # Baseline: exactly one run has completed so far in this module (from
+    # test_reconciliation_runs). Scoped to the demo tenant/portfolios so the
+    # foreign-tenant marker row planted by
+    # test_no_data_is_returned_outside_the_demo_scope doesn't skew the count.
+    first_run_id = client.get("/summary", headers=_auth()).json()["latest_run_id"]
+    assert first_run_id is not None
+    with psycopg.connect(DATABASE_URL) as connection:
+        historical_before = connection.execute(
+            f"SELECT count(*) FROM trade_breaks WHERE {demo_scope_filter}"  # noqa: S608
+        ).fetchone()[0]
+        runs_before = connection.execute(
+            f"SELECT count(*) FROM reconciliation_runs WHERE {demo_scope_filter}"  # noqa: S608
+        ).fetchone()[0]
+    assert historical_before == 90
+    assert runs_before == 2  # one reconciliation_runs row per portfolio
+
+    # 4. Second run, at least a second later so completed_at strictly orders
+    # the two runs. (Selection is still correct regardless -- row_id is the
+    # deterministic tiebreaker -- this sleep just matches the specified
+    # reproduction scenario.)
+    time.sleep(1.1)
+    second = client.post("/reconciliation/run", headers=_auth())
+    assert second.status_code == 200, second.text
+    second_run_id = second.json()["run_id"]
+    assert second_run_id != first_run_id
+
+    # History: append-only. Nothing collapsed, overwritten, or deduplicated.
+    with psycopg.connect(DATABASE_URL) as connection:
+        historical_after = connection.execute(
+            f"SELECT count(*) FROM trade_breaks WHERE {demo_scope_filter}"  # noqa: S608
+        ).fetchone()[0]
+        runs_after = connection.execute(
+            f"SELECT count(*) FROM reconciliation_runs WHERE {demo_scope_filter}"  # noqa: S608
+        ).fetchone()[0]
+    assert historical_after == 180  # 5. both runs' 90 breaks each, all still stored
+    assert runs_after == 4  # two portfolios x two runs, every row preserved
+
+    # 6 + 7. Default summary/breaks report only the latest completed run.
+    summary = client.get("/summary", headers=_auth()).json()
+    assert summary["latest_run_id"] == second_run_id
+    assert summary["total_trades"] == 144
+    assert summary["clean_trades"] == 54
+    assert summary["broken_trades"] == 90
+    assert summary["total_breaks"] == 90
+    assert sum(summary["breaks_by_family"].values()) == 90
+    assert summary["trades_by_product"] == {"FX_SPOT": 72, "FX_FORWARD": 72}
+
+    default_breaks = client.get("/breaks", headers=_auth(), params={"limit": 500}).json()
+    assert len(default_breaks) == 90
+    assert all(row["run_id"] == second_run_id for row in default_breaks)
+    # 8. this is exactly what the dashboard renders: it calls /summary and the
+    # default /breaks with no run_id, so its visible count is this 90 -- the
+    # same number asserted above, not the 180 rows now sitting in history.
+
+    # 10. GET /runs returns both runs' full history.
+    runs = client.get("/runs", headers=_auth(), params={"limit": 20}).json()
+    demo_runs = [row for row in runs if row["run_id"] in {first_run_id, second_run_id}]
+    assert {row["run_id"] for row in demo_runs} == {first_run_id, second_run_id}
+    assert len(demo_runs) == 4  # two portfolio rows per run
+
+    # 9. each explicit historical run_id still returns exactly its own 90,
+    # and the two sets are disjoint -- proving no cross-run bleed either way.
+    first_breaks = client.get(
+        "/breaks", headers=_auth(), params={"run_id": first_run_id, "limit": 500}
+    ).json()
+    second_breaks = client.get(
+        "/breaks", headers=_auth(), params={"run_id": second_run_id, "limit": 500}
+    ).json()
+    assert len(first_breaks) == 90
+    assert len(second_breaks) == 90
+    first_ids = {row["break_id"] for row in first_breaks}
+    second_ids = {row["break_id"] for row in second_breaks}
+    assert first_ids.isdisjoint(second_ids)
+
+    # 12. no cross-tenant/portfolio data appears, even with two runs' worth of
+    # history now present (reusing the foreign marker row planted earlier by
+    # test_no_data_is_returned_outside_the_demo_scope).
+    all_returned_ids = first_ids | second_ids | {row["break_id"] for row in default_breaks}
+    assert "break_foreign_tenant" not in all_returned_ids
+
+    # 11. repeated demo load remains idempotent with two runs of history present.
+    reload = client.post("/demo/load", headers=_auth())
+    assert reload.status_code == 200, reload.text
+    assert reload.json()["inserted"] == 0
 
 
 # 9. database unavailable returns a controlled response, never a stack trace
