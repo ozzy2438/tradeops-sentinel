@@ -117,6 +117,90 @@
     [
       "packages.reconciliation.models",
       "packages.contracts.models"
+    ],
+    [
+      "packages.remediation.ai_provider",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.remediation.ai_provider",
+      "packages.remediation.retrieval"
+    ],
+    [
+      "packages.remediation.envelope",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.remediation.evidence",
+      "packages.remediation.store"
+    ],
+    [
+      "packages.remediation.executor",
+      "packages.remediation"
+    ],
+    [
+      "packages.remediation.executor",
+      "packages.remediation.envelope"
+    ],
+    [
+      "packages.remediation.executor",
+      "packages.remediation.legacy_adapter"
+    ],
+    [
+      "packages.remediation.executor",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.remediation.executor",
+      "packages.remediation.store"
+    ],
+    [
+      "packages.remediation.legacy_adapter",
+      "packages.remediation.store"
+    ],
+    [
+      "packages.remediation.policy",
+      "packages.remediation"
+    ],
+    [
+      "packages.remediation.policy",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.remediation.policy",
+      "packages.remediation.retrieval"
+    ],
+    [
+      "packages.remediation.store",
+      "packages.persistence.adapter"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.persistence.adapter"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.remediation"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.remediation.ai_provider"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.remediation.policy"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.remediation.retrieval"
+    ],
+    [
+      "packages.remediation.triage",
+      "packages.remediation.store"
     ]
   ],
   "isolated": true,
@@ -139,7 +223,18 @@
     "packages.reconciliation",
     "packages.reconciliation.config",
     "packages.reconciliation.engine",
-    "packages.reconciliation.models"
+    "packages.reconciliation.models",
+    "packages.remediation",
+    "packages.remediation.ai_provider",
+    "packages.remediation.envelope",
+    "packages.remediation.evidence",
+    "packages.remediation.executor",
+    "packages.remediation.legacy_adapter",
+    "packages.remediation.models",
+    "packages.remediation.policy",
+    "packages.remediation.retrieval",
+    "packages.remediation.store",
+    "packages.remediation.triage"
   ],
   "oracle_prefix": "packages.oracle",
   "oracle_to_reconciliation_paths": [],

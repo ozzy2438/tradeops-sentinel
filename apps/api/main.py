@@ -1,8 +1,10 @@
 """TradeOps Sentinel product API.
 
 A deliberately small FastAPI surface over the existing deterministic core.
-Nine endpoints, one API-key guard, typed errors. No registration, OAuth, JWT
-or RBAC -- those are explicitly out of scope for this MVP.
+Nine product endpoints plus five controlled-AI remediation endpoints (see
+``docs/AI_REMEDIATION.md``), one API-key guard, typed errors. No
+registration, OAuth, JWT or RBAC -- those are explicitly out of scope for
+this MVP.
 """
 
 from __future__ import annotations
@@ -22,6 +24,20 @@ from pydantic import BaseModel, Field
 
 from packages.persistence.adapter import DatabaseUnavailableError, PostgresAdapter
 from packages.persistence.inbox import SourceConflictError
+from packages.remediation import triage as remediation_triage
+from packages.remediation.ai_provider import AIProvider, get_provider
+from packages.remediation.envelope import EnvelopeSigningError, build_envelope
+from packages.remediation.evidence import case_view, finalize_evidence
+from packages.remediation.executor import RemediationExecutor
+from packages.remediation.legacy_adapter import MockLegacyBookingAdapter
+from packages.remediation.models import (
+    ActionEnvelope,
+    AIRecommendation,
+    Approval,
+    PolicyDecision,
+    recommendation_content_hash,
+)
+from packages.remediation.store import DuplicateApprovalRoleError, RemediationStore
 
 from .service import (
     DEMO_PORTFOLIO_IDS,
@@ -29,7 +45,9 @@ from .service import (
     SCOPE,
     DemoScopeError,
     build_summary,
+    ingest_corrected_booking_observation,
     load_demo_corpus,
+    rerun_trade_reconciliation,
     run_reconciliation,
 )
 
@@ -127,6 +145,36 @@ Guard = Annotated[None, Depends(require_api_key)]
 Adapter = Annotated[PostgresAdapter, Depends(get_adapter)]
 
 
+def get_remediation_store(adapter: Adapter) -> RemediationStore:
+    return RemediationStore(adapter)
+
+
+RemediationStoreDep = Annotated[RemediationStore, Depends(get_remediation_store)]
+
+
+def get_legacy_adapter(store: RemediationStoreDep) -> MockLegacyBookingAdapter:
+    return MockLegacyBookingAdapter(store)
+
+
+LegacyAdapterDep = Annotated[MockLegacyBookingAdapter, Depends(get_legacy_adapter)]
+
+
+def get_executor(
+    store: RemediationStoreDep, legacy_adapter: LegacyAdapterDep
+) -> RemediationExecutor:
+    return RemediationExecutor(store, legacy_adapter)
+
+
+ExecutorDep = Annotated[RemediationExecutor, Depends(get_executor)]
+
+
+def get_ai_provider() -> AIProvider:
+    return get_provider()
+
+
+ProviderDep = Annotated[AIProvider, Depends(get_ai_provider)]
+
+
 # --------------------------------------------------------------------------
 # response models
 # --------------------------------------------------------------------------
@@ -214,6 +262,20 @@ class TradeDetail(BaseModel):
     breaks: list[BreakRow]
 
 
+class RemediationCaseRequest(BaseModel):
+    break_id: str = Field(min_length=1)
+
+
+class RemediationCaseResponse(BaseModel):
+    case_id: str
+    recommendation: AIRecommendation
+    policy_decision: PolicyDecision
+
+
+class RemediationApprovalRequest(BaseModel):
+    approver_identity: str = Field(min_length=1, max_length=200)
+
+
 class ErrorResponse(BaseModel):
     error: str
     detail: str
@@ -277,6 +339,15 @@ async def _source_conflict(_: Any, exc: SourceConflictError) -> JSONResponse:
                 "ingestion was rolled back"
             ),
         ).model_dump(),
+    )
+
+
+@app.exception_handler(EnvelopeSigningError)
+async def _envelope_signing_unavailable(_: Any, exc: EnvelopeSigningError) -> JSONResponse:
+    LOGGER.error("remediation_signing_secret_unavailable", extra={"error": type(exc).__name__})
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=_safe_error(exc, "remediation signing secret is not configured").model_dump(),
     )
 
 
@@ -422,3 +493,213 @@ def trade_detail(adapter: Adapter, _: Guard, trade_id: str) -> TradeDetail:
         source_version_set=row["source_version_set"],
         breaks=[BreakRow(**item) for item in related if item["trade_id"] == trade_id],
     )
+
+
+# --------------------------------------------------------------------------
+# remediation (controlled-AI remediation slice)
+# --------------------------------------------------------------------------
+
+
+@app.post(
+    "/remediation/cases",
+    response_model=RemediationCaseResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["remediation"],
+)
+def remediation_create_case(
+    adapter: Adapter,
+    store: RemediationStoreDep,
+    provider: ProviderDep,
+    _: Guard,
+    body: RemediationCaseRequest,
+) -> RemediationCaseResponse:
+    """Detect -> AI triage -> deterministic policy evaluation for one break.
+
+    Scoped to the single ECONOMIC_VALUE_MISMATCH/base_amount scenario this
+    slice supports; anything else is rejected, not silently generalised.
+    """
+
+    try:
+        result = remediation_triage.generate_case(
+            break_id=body.break_id,
+            scope=dict(SCOPE),
+            product_adapter=adapter,
+            store=store,
+            provider=provider,
+        )
+    except remediation_triage.BreakNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except remediation_triage.CaseNotEligibleError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return RemediationCaseResponse(
+        case_id=result["case_id"],
+        recommendation=result["recommendation"],
+        policy_decision=result["decision"],
+    )
+
+
+def _require_remediation_case(store: RemediationStore, case_id: str) -> dict[str, Any]:
+    case = store.get_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="remediation case not found")
+    return case
+
+
+def _submit_remediation_approval(
+    store: RemediationStore, *, case_id: str, role: str, approver_identity: str
+) -> dict[str, Any]:
+    case = _require_remediation_case(store, case_id)
+    decision = PolicyDecision.model_validate(case["policy_decision"])
+    if decision.outcome != "ELIGIBLE_FOR_APPROVAL":
+        raise HTTPException(
+            status_code=409,
+            detail=f"case is not eligible for approval (outcome={decision.outcome})",
+        )
+    existing = store.get_approvals(case_id)
+    other_role_identity = next(
+        (row["approver_identity"] for row in existing if row["role"] != role), None
+    )
+    if other_role_identity is not None and other_role_identity == approver_identity:
+        raise HTTPException(
+            status_code=409, detail="maker and checker must be different identities"
+        )
+    rec_hash = recommendation_content_hash(case["ai_recommendation"])
+    try:
+        store.insert_approval(
+            case_id=case_id,
+            role=role,
+            approver_identity=approver_identity,
+            decision="APPROVE",
+            approved_recommendation_hash=rec_hash,
+        )
+    except DuplicateApprovalRoleError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    view = case_view(store, case_id)
+    assert view is not None
+    return view
+
+
+@app.post("/remediation/cases/{case_id}/maker-approval", tags=["remediation"])
+def remediation_maker_approval(
+    store: RemediationStoreDep, _: Guard, case_id: str, body: RemediationApprovalRequest
+) -> dict[str, Any]:
+    """Maker approval for the proposed economic-field correction."""
+
+    return _submit_remediation_approval(
+        store, case_id=case_id, role="MAKER", approver_identity=body.approver_identity
+    )
+
+
+@app.post("/remediation/cases/{case_id}/checker-approval", tags=["remediation"])
+def remediation_checker_approval(
+    store: RemediationStoreDep, _: Guard, case_id: str, body: RemediationApprovalRequest
+) -> dict[str, Any]:
+    """Checker approval for the proposed economic-field correction."""
+
+    return _submit_remediation_approval(
+        store, case_id=case_id, role="CHECKER", approver_identity=body.approver_identity
+    )
+
+
+@app.post("/remediation/cases/{case_id}/execute", tags=["remediation"])
+def remediation_execute(
+    adapter: Adapter,
+    store: RemediationStoreDep,
+    executor: ExecutorDep,
+    _: Guard,
+    case_id: str,
+) -> dict[str, Any]:
+    """Execute the signed, approved action; on success, verify and finalise evidence.
+
+    Safe to call more than once for the same case: the envelope is issued
+    once and reused (its idempotency_key never changes), and re-executing an
+    already-applied correction reads back as a confirmed no-op rather than
+    repeating the write or re-running post-action verification.
+    """
+
+    case = _require_remediation_case(store, case_id)
+    decision = PolicyDecision.model_validate(case["policy_decision"])
+    if decision.outcome != "ELIGIBLE_FOR_APPROVAL":
+        raise HTTPException(
+            status_code=409,
+            detail=f"case is not eligible for execution (outcome={decision.outcome})",
+        )
+    approvals_rows = store.get_approvals(case_id)
+    maker_row = next((row for row in approvals_rows if row["role"] == "MAKER"), None)
+    checker_row = next((row for row in approvals_rows if row["role"] == "CHECKER"), None)
+    if maker_row is None or checker_row is None:
+        raise HTTPException(
+            status_code=409,
+            detail="both maker and checker approval are required before execution",
+        )
+
+    envelope_row = store.get_envelope(case_id)
+    if envelope_row is None:
+        assert decision.approved_field_path is not None
+        assert decision.approved_value is not None
+        draft = build_envelope(
+            case_id=case_id,
+            trade_id=case["trade_id"],
+            tenant_id=case["tenant_id"],
+            portfolio_id=case["portfolio_id"],
+            field_path=decision.approved_field_path,
+            approved_value=decision.approved_value,
+            expected_old_value=case["break_facts"]["observed_value"],
+            maker_identity=maker_row["approver_identity"],
+            checker_identity=checker_row["approver_identity"],
+            idempotency_key=f"idem_{case_id}",
+        )
+        envelope_row = store.insert_envelope_if_absent(
+            case_id=case_id,
+            idempotency_key=draft.idempotency_key,
+            envelope_document=draft.model_dump(mode="json"),
+            content_hash=draft.content_hash,
+            issued_at=draft.issued_at,
+            expires_at=draft.expires_at,
+        )
+    envelope = ActionEnvelope.model_validate(envelope_row["envelope_document"])
+
+    approvals = [
+        Approval(
+            role=row["role"],
+            approver_identity=row["approver_identity"],
+            decision=row["decision"],
+            approved_recommendation_hash=row["approved_recommendation_hash"],
+            decided_at=row["decided_at"],
+        )
+        for row in approvals_rows
+    ]
+    result = executor.execute(envelope, approvals)
+
+    post_action_reconciliation: dict[str, Any] | None = None
+    if result.applied:
+        ingest_corrected_booking_observation(
+            adapter,
+            trade_id=case["trade_id"],
+            field_path=envelope.field_path,
+            approved_value=envelope.approved_value,
+        )
+        post_action_reconciliation = rerun_trade_reconciliation(adapter, trade_id=case["trade_id"])
+        finalize_evidence(
+            store, case_id=case_id, post_action_reconciliation=post_action_reconciliation
+        )
+
+    view = case_view(store, case_id)
+    assert view is not None
+    return {"execution_result": result.model_dump(mode="json"), "case": view}
+
+
+@app.get("/remediation/cases/{case_id}/evidence", tags=["remediation"])
+def remediation_evidence(store: RemediationStoreDep, _: Guard, case_id: str) -> dict[str, Any]:
+    """Full machine-readable evidence for one remediation case.
+
+    Available at any stage: before a terminal outcome this reflects the
+    case's current state; once execution succeeds and post-action
+    verification confirms the break resolved, it also carries the one
+    frozen evidence snapshot.
+    """
+
+    view = case_view(store, case_id)
+    if view is None:
+        raise HTTPException(status_code=404, detail="remediation case not found")
+    return view

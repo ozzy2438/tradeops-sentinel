@@ -39,9 +39,9 @@ def api_get(path: str, **params: Any) -> Any:
     return response.json()
 
 
-def api_post(path: str) -> Any:
+def api_post(path: str, *, json: dict[str, Any] | None = None) -> Any:
     with _client() as client:
-        response = client.post(path)
+        response = client.post(path, json=json)
     if response.status_code >= 400:
         st.error(f"API {response.status_code} on POST {path}: {response.text[:300]}")
         return None
@@ -286,6 +286,153 @@ if rows:
                 st.json(trade["state"])
                 st.markdown("**Field provenance**")
                 st.json(trade["field_provenance"])
+
+        # ------------------------------------------------------------------
+        # AI-assisted remediation (controlled-AI remediation slice)
+        # ------------------------------------------------------------------
+        st.divider()
+        st.markdown("### AI-assisted remediation")
+        st.caption(
+            "Single supported scenario in this slice: ECONOMIC_VALUE_MISMATCH on "
+            "`/payload/base_amount`. Any other break is rejected, not silently handled."
+        )
+
+        session_key = f"remediation_case::{selected}"
+        remediation_case_id = st.session_state.get(session_key)
+
+        if st.button("🤖 Generate AI recommendation", key=f"generate::{selected}"):
+            with st.spinner("Deterministic facts -> AI triage -> deterministic policy…"):
+                created = api_post("/remediation/cases", json={"break_id": selected})
+            if created:
+                st.session_state[session_key] = created["case_id"]
+                remediation_case_id = created["case_id"]
+                st.success(f"Case `{created['case_id']}` generated.")
+
+        if remediation_case_id:
+            case = api_get(f"/remediation/cases/{remediation_case_id}/evidence")
+            if case:
+                rec = case.get("ai_recommendation") or {}
+                decision = case.get("policy_decision") or {}
+
+                rc1, rc2, rc3 = st.columns(3)
+                rc1.metric("Predicted priority", rec.get("priority", "—"))
+                rc2.metric("Confidence", f"{rec.get('confidence', 0):.0%}")
+                rc3.metric("Risk tier", rec.get("risk_tier", "—"))
+
+                st.markdown(f"**Predicted root cause** — {rec.get('predicted_root_cause', '—')}")
+                st.markdown(
+                    f"**Policy decision** — `{decision.get('outcome', '—')}` "
+                    f"({', '.join(decision.get('reasons') or []) or '—'})"
+                )
+
+                citations = rec.get("citations") or []
+                if citations:
+                    st.markdown(
+                        "**Cited runbook sections** — "
+                        + ", ".join(f"`{c['document_id']}#{c['section']}`" for c in citations)
+                    )
+
+                proposed = rec.get("proposed_fields") or {}
+                if proposed:
+                    st.markdown(
+                        "**Proposed correction** — "
+                        + ", ".join(f"`{k}` → `{v}`" for k, v in proposed.items())
+                    )
+
+                approvals = {row["role"]: row for row in case.get("approvals") or []}
+                eligible = decision.get("outcome") == "ELIGIBLE_FOR_APPROVAL"
+
+                ac1, ac2 = st.columns(2)
+                with ac1:
+                    maker = approvals.get("MAKER")
+                    if maker:
+                        st.success(f"Maker approved by `{maker['approver_identity']}`")
+                    elif eligible:
+                        maker_identity = st.text_input(
+                            "Maker identity",
+                            value="maker.alice",
+                            key=f"maker-id::{remediation_case_id}",
+                        )
+                        if (
+                            st.button(
+                                "✅ Submit Maker approval", key=f"maker-btn::{remediation_case_id}"
+                            )
+                            and maker_identity
+                        ):
+                            api_post(
+                                f"/remediation/cases/{remediation_case_id}/maker-approval",
+                                json={"approver_identity": maker_identity},
+                            )
+                            st.rerun()
+                    else:
+                        st.caption("Not eligible for approval.")
+                with ac2:
+                    checker = approvals.get("CHECKER")
+                    if checker:
+                        st.success(f"Checker approved by `{checker['approver_identity']}`")
+                    elif eligible:
+                        checker_identity = st.text_input(
+                            "Checker identity",
+                            value="checker.bob",
+                            key=f"checker-id::{remediation_case_id}",
+                        )
+                        if (
+                            st.button(
+                                "✅ Submit Checker approval",
+                                key=f"checker-btn::{remediation_case_id}",
+                            )
+                            and checker_identity
+                        ):
+                            api_post(
+                                f"/remediation/cases/{remediation_case_id}/checker-approval",
+                                json={"approver_identity": checker_identity},
+                            )
+                            st.rerun()
+                    else:
+                        st.caption("Not eligible for approval.")
+
+                if maker and checker:
+                    if st.button(
+                        "⚙️ Execute approved correction", key=f"execute::{remediation_case_id}"
+                    ):
+                        with st.spinner(
+                            "Executing signed envelope via mock legacy-booking adapter…"
+                        ):
+                            executed = api_post(f"/remediation/cases/{remediation_case_id}/execute")
+                        if executed:
+                            outcome = executed["execution_result"]["outcome"]
+                            st.info(f"Execution outcome: `{outcome}`")
+                        st.rerun()
+
+                executions = case.get("executions") or []
+                if executions:
+                    st.markdown("**Execution attempts** (append-only; a replay is a safe no-op)")
+                    st.dataframe(
+                        pd.json_normalize(executions), use_container_width=True, hide_index=True
+                    )
+
+                post_action = case.get("post_action_reconciliation")
+                if post_action:
+                    if post_action.get("result") == "PASS":
+                        st.success(
+                            f"Post-action reconciliation: **RECONCILED** — "
+                            f"trade `{post_action['trade_id']}`, "
+                            f"canonical state v{post_action['canonical_state_version']}"
+                        )
+                    else:
+                        st.warning(
+                            f"Post-action reconciliation result: `{post_action.get('result')}` "
+                            f"— break families still open: "
+                            f"{', '.join(post_action.get('break_families') or []) or '—'}"
+                        )
+
+                if case.get("evidence_id"):
+                    st.markdown(
+                        f"**Evidence record** `{case['evidence_id']}`  ·  "
+                        f"content hash `{case['evidence_content_hash']}`"
+                    )
+                    with st.expander("Full machine-readable evidence document (JSON)"):
+                        st.json(case)
 else:
     st.caption("No breaks match the current filters.")
 
