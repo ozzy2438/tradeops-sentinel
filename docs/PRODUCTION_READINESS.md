@@ -19,7 +19,13 @@ validated in the target environment.
 - deterministic replay/conflict and locked-input rerun invariants;
 - wheel build plus clean isolated installation/import verification;
 - Ruff, strict mypy, pytest, PostgreSQL 16 integration, dependency, secret and
-  AI-authorship checks in pull-request CI.
+  AI-authorship checks in pull-request CI;
+- controlled-AI remediation slice for one scenario (`ECONOMIC_VALUE_MISMATCH`
+  on `/payload/base_amount`): citation-backed structured recommendation,
+  deterministic fail-closed policy, Maker+Checker approval, a signed/
+  expiring/idempotent action envelope, mock legacy-booking execution with
+  row-locked replay/timeout-recovery safety, post-action re-verification, and
+  a frozen evidence record — see `docs/AI_REMEDIATION.md`.
 
 ## Manual `main` branch-protection checklist
 
@@ -34,8 +40,9 @@ names have completed successfully at least once:
 - administrators do not have an undocumented bypass;
 - the following successful status checks are required:
   `lint-type-unit`, `oracle-import-isolation`, `wheel-clean-install`,
-  `postgres-integration`, `ai-authorship-trailer-check`, `dependency-scan`,
-  and `secret-scan`;
+  `postgres-integration`, `product-e2e`, `docker-build-and-smoke`,
+  `ai-authorship-trailer-check`, `dependency-scan`, and `secret-scan`
+  (confirmed against live branch protection on `main` at 2026-08-04);
 - disabled placeholder jobs are never selected as required checks or reported
   as passing evidence.
 

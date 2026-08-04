@@ -240,6 +240,12 @@ controls, execution status and attempt history, post-action verification
 (`RECONCILED` once the scoped rerun confirms `PASS`), and the evidence record
 identifier and content hash.
 
+Captured against the exact `main` commit this feature merged at:
+
+![Break detected](screenshots/07-remediation-break-detected.png)
+![AI recommendation generated](screenshots/08-remediation-ai-recommendation.png)
+![Executed and reconciled](screenshots/09-remediation-executed-reconciled.png)
+
 ## Tests
 
 `tests/test_remediation.py` (23 tests, no database) — structured AI output

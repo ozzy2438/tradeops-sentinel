@@ -41,7 +41,7 @@ A verbatim end-to-end transcript is in [`docs/DEMO_RECORD.md`](docs/DEMO_RECORD.
         └─────────┬──────────┘
                   │
         ┌─────────▼──────────┐
-        │  FastAPI :8000     │   9 endpoints, API-key guard, typed errors.
+        │  FastAPI :8000     │   9 product + 5 remediation endpoints, API-key guard.
         └─────────┬──────────┘
                   │
         ┌─────────▼──────────────────────────────────────────┐
@@ -103,12 +103,13 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 - **"Exactly once"** — actions are *at-most-once semantic* with read-back verification, never claimed exactly-once.
 - **"Secure" / "production-ready"** — without naming the specific control and its test.
 - **"Regulatory-compliant"** — this is a portfolio/reference implementation using synthetic data only; it does not claim regulatory compliance.
-- Any UiPath or cloud-deployment result that was not actually run. The MVP legacy executor is **Playwright**, not UiPath — see ADR-011. Any demo material must say so explicitly.
+- Any UiPath or cloud-deployment result that was not actually run. The one implemented mock legacy executor (`MockLegacyBookingAdapter`, see `docs/AI_REMEDIATION.md`) is a plain Python/PostgreSQL adapter — not Playwright, and not UiPath. ADR-011 proposes a separate, still-unimplemented Playwright-driven executor for a fuller future MVP; nothing in this repository runs it today. Any demo material must say so explicitly.
+- Live validation of the `anthropic` LLM provider. `AnthropicProvider` is implemented but has never been exercised against a real API call in this repository — see `docs/AI_REMEDIATION.md`.
 
 ## Scope boundaries (MVP)
 
 - Synthetic FX Spot/Forward data only — **no real bank, customer, or market-sensitive data**, ever.
-- One non-economic automated action (`SET_CONFIRMATION_REFERENCE`); all other trade-economic changes are manual-only in the MVP.
+- One human-approved economic-field correction (`CORRECT_LEGACY_BOOKING_FIELD` on `/payload/base_amount`, exactly one break scenario), gated by mandatory Maker+Checker approval and a signed action envelope — never autonomous. See `docs/AI_REMEDIATION.md`. All other trade-economic changes remain manual/unimplemented in the MVP.
 - One synthetic tenant, at least two portfolios (isolation is tested, not just asserted).
 - No live market connectivity, order generation, price prediction, or trading strategy — see ADR context in `docs/adr/`.
 
