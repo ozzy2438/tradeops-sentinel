@@ -6,14 +6,15 @@
 > production-oriented deterministic reconciliation reference implementation.**
 > The product runs end to end: load synthetic FX data, assemble policy-enforced
 > canonical trade state, run deterministic reconciliation, and inspect detected
-> breaks with full provenance in a dashboard. TS-14 audit ledger, TS-15
-> release-evidence gate, the LLM workflow and the Playwright executor remain
-> out of scope.
+> breaks with full provenance in a dashboard. One tightly bounded controlled-AI
+> remediation flow is implemented, including an optional Azure OpenAI provider.
+> TS-14 audit ledger, TS-15 release-evidence gate and the Playwright executor
+> remain out of scope.
 
 ## Run the product
 
 ```bash
-cp .env.example .env      # then fill in DATABASE_URL and TRADEOPS_API_KEY
+cp .env.example .env      # then fill in database, API-key and signing-secret values
 docker compose up --build
 ```
 
@@ -95,6 +96,31 @@ This is **not** an autonomous trading system. AI investigates, classifies, and r
 
 The one implemented, end-to-end demonstration of that AI/maker-checker/signed-instruction/read-back-verified loop — for exactly one break family and one field — is documented in [`docs/AI_REMEDIATION.md`](docs/AI_REMEDIATION.md).
 
+### Optional live Azure OpenAI recommendation
+
+The product remains deterministic by default. To exercise only the advisory
+recommendation boundary with Azure OpenAI, without starting the database or
+the legacy executor:
+
+```bash
+python -m pip install -e ".[dev,azure]"
+az login
+export TRADEOPS_AI_PROVIDER=azure-openai
+export AZURE_OPENAI_ENDPOINT=https://<resource-name>.openai.azure.com
+export AZURE_OPENAI_DEPLOYMENT=<deployment-name>
+python scripts/run_azure_recommendation_demo.py
+```
+
+The demo sends one small synthetic break, accepts only a strict structured
+schema that is immediately converted to `AIRecommendation`, caps the
+completion at 400 tokens, and then runs the normal deterministic policy gate.
+It has no database, signing, approval, dispatch, or execution capability.
+Authentication uses the current Azure CLI identity by default;
+`AZURE_OPENAI_API_KEY` is supported for environments that cannot use Microsoft
+Entra ID. A sanitized live-validation record is in
+[`docs/AZURE_OPENAI_VALIDATION.md`](docs/AZURE_OPENAI_VALIDATION.md); see also
+[`docs/AI_REMEDIATION.md`](docs/AI_REMEDIATION.md).
+
 ## Claims that must not be made about this project
 
 Per the approved MVP Release Charter (§27), the following claims are **forbidden** unless a specific, tested, implemented mechanism backs them for the exact environment described:
@@ -104,7 +130,7 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 - **"Secure" / "production-ready"** — without naming the specific control and its test.
 - **"Regulatory-compliant"** — this is a portfolio/reference implementation using synthetic data only; it does not claim regulatory compliance.
 - Any UiPath or cloud-deployment result that was not actually run. The one implemented mock legacy executor (`MockLegacyBookingAdapter`, see `docs/AI_REMEDIATION.md`) is a plain Python/PostgreSQL adapter — not Playwright, and not UiPath. ADR-011 proposes a separate, still-unimplemented Playwright-driven executor for a fuller future MVP; nothing in this repository runs it today. Any demo material must say so explicitly.
-- Live validation of the `anthropic` LLM provider. `AnthropicProvider` is implemented but has never been exercised against a real API call in this repository — see `docs/AI_REMEDIATION.md`.
+- Live validation of the `anthropic` LLM provider. `AnthropicProvider` is implemented but has never been exercised against a real API call in this repository. The separate Azure OpenAI provider was exercised only through the single bounded synthetic validation recorded in `docs/AZURE_OPENAI_VALIDATION.md`; that result must not be broadened into a production or autonomous-execution claim.
 
 ## Scope boundaries (MVP)
 
@@ -123,6 +149,7 @@ packages/contracts/    # canonical model + schemas (ADR-001/002/005) — Epic E2
 packages/generator/    # deterministic synthetic FX generator (ADR-006) — Epic E3
 packages/persistence/  # inbox semantics, SOT-enforced canonical assembly, psycopg 3 adapter + DDL
 packages/reconciliation/ # deterministic reconciliation engine (ADR-002) — Epic E5
+packages/remediation/  # controlled AI recommendation, policy, approvals, envelope and execution
 packages/oracle/       # independently implemented reconciliation oracle + import isolation
 packages/evidence/     # planned TS-14 hash-chain/verifier seam (README only)
 packages/executor/     # planned Playwright executor seam (README only)

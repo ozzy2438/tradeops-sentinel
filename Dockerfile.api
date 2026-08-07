@@ -10,8 +10,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY packages ./packages
-RUN pip install --upgrade pip setuptools>=83.0.0 && pip install . && \
-    pip install "fastapi>=0.115" "uvicorn[standard]>=0.30" "psycopg[binary]>=3.2"
+RUN pip install --upgrade pip setuptools>=83.0.0 && pip install ".[api,azure]"
 
 COPY apps ./apps
 
