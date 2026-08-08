@@ -19,6 +19,7 @@ REQUIRED_IMPORTS = (
     "packages.reconciliation",
     "packages.oracle",
     "packages.remediation",
+    "packages.priority_model",
 )
 REQUIRED_WHEEL_MEMBERS = (
     "packages/contracts/examples/valid/source-of-truth-policy.json",
@@ -27,6 +28,9 @@ REQUIRED_WHEEL_MEMBERS = (
     "packages/persistence/ddl/0002_p1_production_boundaries.sql",
     "packages/persistence/ddl/0003_product_runtime.sql",
     "packages/persistence/ddl/0004_ai_remediation.sql",
+    "packages/persistence/ddl/0005_ml_priority_assessment.sql",
+    "packages/priority_model/artifacts/priority_model.txt",
+    "packages/priority_model/artifacts/metadata.json",
     "packages/remediation/runbooks/RB-001-fx-economic-value-mismatch.md",
     "packages/remediation/runbooks/RB-002-maker-checker-approval-policy.md",
     "packages/remediation/runbooks/RB-003-automation-failure-recovery.md",

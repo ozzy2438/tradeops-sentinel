@@ -1,0 +1,44 @@
+{
+  "dataset_sha256": "sha256:5c3e02ee015f978c16eb646341a257a7aa621327608f21945da336ec2392e66d",
+  "feature_names": [
+    "log10_trade_value",
+    "relative_value_gap_bps",
+    "product_is_forward",
+    "family__missing_required_source",
+    "family__ambiguous_or_unmatched_linkage",
+    "family__duplicate_source_conflict",
+    "family__currency_pair_or_side_mismatch",
+    "family__economic_value_mismatch",
+    "family__trade_or_value_date_mismatch",
+    "family__lifecycle_status_mismatch",
+    "family__post_action_verification_failure",
+    "field_is_base_amount",
+    "field_is_quoted_rate",
+    "expected_source_is_fix_execution",
+    "observed_source_is_legacy_booking",
+    "condition_is_decimal_tolerance",
+    "currency_is_g10"
+  ],
+  "feature_version": "1.0.0",
+  "lightgbm_version": "4.7.0",
+  "limitations": "Synthetic demonstration labels only; metrics validate the engineering pipeline, not predictive validity on real bank operations.",
+  "model_sha256": "sha256:a93bca326c3fa9b7920ae0d72b80f86aeb487c217267ddb33021830352f879f3",
+  "model_version": "priority-lgbm-1.0.0",
+  "priority_thresholds": {
+    "critical": 0.75,
+    "high": 0.5,
+    "medium": 0.25
+  },
+  "sample_count": 2400,
+  "threshold_policy": "score:<0.25 LOW;<0.50 MEDIUM;<0.75 HIGH;else CRITICAL",
+  "train_count": 1920,
+  "training_data": "SYNTHETIC_ONLY",
+  "training_seed": 20260808,
+  "validation_count": 480,
+  "validation_metrics": {
+    "accuracy_at_0_5": 0.825,
+    "brier_score": 0.12157838,
+    "positive_rate": 0.21041667,
+    "roc_auc": 0.82622326
+  }
+}

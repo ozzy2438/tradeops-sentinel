@@ -26,36 +26,40 @@ generalised to.
 2. `packages/remediation/triage.py` builds a strict `BreakFacts` document
    from the break's own structured comparison data — no raw source documents,
    no database access from the AI's side.
-3. An AI provider (`packages/remediation/ai_provider.py`) returns a strict
+3. The versioned local LightGBM model scores queue priority from those same
+   point-in-time facts and returns complete SHAP contribution evidence. It is
+   advisory and cannot affect policy or authorise an action; see
+   [`ML_PRIORITY_MODEL.md`](ML_PRIORITY_MODEL.md).
+4. An AI provider (`packages/remediation/ai_provider.py`) returns a strict
    `AIRecommendation`: predicted root cause, confidence, priority,
    recommended action, proposed field/value, risk tier, citations, or an
    abstain reason. The LLM never executes SQL, calls a tool, or modifies
    anything — it returns one JSON document, validated against the schema
    before anything downstream sees it.
-4. The recommendation must cite a real runbook section
+5. The recommendation must cite a real runbook section
    (`packages/remediation/retrieval.py`, `packages/remediation/runbooks/`).
-5. `packages/remediation/policy.py`, a deterministic engine, evaluates the
+6. `packages/remediation/policy.py`, a deterministic engine, evaluates the
    recommendation against a fixed rule set. It never trusts the AI's own
    `required_approvals` or `risk_tier` — those are advisory; the policy
    engine's own decision is authoritative.
-6. If eligible, a Maker and a different-identity Checker approve
+7. If eligible, a Maker and a different-identity Checker approve
    (`POST /remediation/cases/{id}/maker-approval` /
    `.../checker-approval`).
-7. A signed, expiring, idempotent `ActionEnvelope` is built and issued once
+8. A signed, expiring, idempotent `ActionEnvelope` is built and issued once
    per case (`packages/remediation/envelope.py`).
-8. `RemediationExecutor` (`packages/remediation/executor.py`) verifies the
+9. `RemediationExecutor` (`packages/remediation/executor.py`) verifies the
    envelope and approvals, then calls `MockLegacyBookingAdapter` to apply
    the one approved field.
-9. The corrected value is read back, then re-delivered into the normal
+10. The corrected value is read back, then re-delivered into the normal
    observation-ingestion pipeline as a new, superseding `BOOKING`
    observation (`apps/api/service.py::ingest_corrected_booking_observation`)
    — this is what makes the correction visible to reconciliation at all; see
    [Why a new observation, not a canonical-state patch](#why-a-new-observation-not-a-canonical-state-patch).
-10. The existing deterministic reconciliation pipeline reruns, scoped to
+11. The existing deterministic reconciliation pipeline reruns, scoped to
     just this trade (`apps/api/service.py::rerun_trade_reconciliation`), and
     confirms the break is resolved.
-11. A frozen, hashed evidence record is written, preserving the original
-    break, the AI recommendation, citations, confidence, the policy
+12. A frozen, hashed evidence record is written, preserving the original
+    break, the LightGBM/SHAP assessment, the AI recommendation, citations, confidence, the policy
     decision, both approvals, the envelope's content hash, every execution
     attempt, and the post-action reconciliation result
     (`packages/remediation/evidence.py`).
@@ -256,7 +260,7 @@ slice's "reuse the existing API, do not build RBAC" scope.
 
 The existing break-detail section of `apps/dashboard/app.py` gained one new
 subsection, "AI-assisted remediation" — nothing else was redesigned. It
-shows the detected break, predicted root cause, confidence/priority, cited
+shows the detected break, ML score/priority and top SHAP factors, predicted root cause, confidence, cited
 runbook sections, proposed correction, risk tier, Maker/Checker approval
 controls, execution status and attempt history, post-action verification
 (`RECONCILED` once the scoped rerun confirms `PASS`), and the evidence record
@@ -287,10 +291,10 @@ complete evidence-record content.
 **In scope for this slice:** exactly what is described above, for exactly
 one break family and one field.
 
-**Explicitly out of scope**, per the task that produced this slice: root-cause
-model training, priority-model training, SHAP, MLflow, a real UiPath
+**Explicitly out of scope:** root-cause model training, MLflow, a real UiPath
 installation, cloud deployment infrastructure, OAuth, a general RBAC system,
 new asset classes, new reconciliation rules or break families beyond the
 existing eight, autonomous trading, production booking-system integration,
 additional dashboards, and any further product-roadmap expansion. This PR
-does not begin a next phase and does not propose one.
+keeps those boundaries; the bounded LightGBM+SHAP priority extension is
+documented separately in [`ML_PRIORITY_MODEL.md`](ML_PRIORITY_MODEL.md).

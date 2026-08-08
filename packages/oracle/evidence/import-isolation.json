@@ -87,6 +87,38 @@
       "packages.contracts.models"
     ],
     [
+      "packages.priority_model",
+      "packages.priority_model.models"
+    ],
+    [
+      "packages.priority_model.features",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.priority_model.models",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.priority_model.provider",
+      "packages.priority_model.features"
+    ],
+    [
+      "packages.priority_model.provider",
+      "packages.priority_model.models"
+    ],
+    [
+      "packages.priority_model.provider",
+      "packages.remediation.models"
+    ],
+    [
+      "packages.priority_model.training",
+      "packages.priority_model.features"
+    ],
+    [
+      "packages.priority_model.training",
+      "packages.remediation.models"
+    ],
+    [
       "packages.reconciliation",
       "packages.reconciliation.config"
     ],
@@ -180,6 +212,10 @@
     ],
     [
       "packages.remediation.triage",
+      "packages.priority_model.models"
+    ],
+    [
+      "packages.remediation.triage",
       "packages.remediation"
     ],
     [
@@ -220,6 +256,11 @@
     "packages.persistence.adapter",
     "packages.persistence.assembler",
     "packages.persistence.inbox",
+    "packages.priority_model",
+    "packages.priority_model.features",
+    "packages.priority_model.models",
+    "packages.priority_model.provider",
+    "packages.priority_model.training",
     "packages.reconciliation",
     "packages.reconciliation.config",
     "packages.reconciliation.engine",

@@ -209,6 +209,13 @@ def test_generated_case_is_eligible_with_a_deterministic_recommendation(
         "/payload/base_amount": AUTHORITATIVE_VALUE
     }
     assert new_case["recommendation"]["citations"]
+    assessment = new_case["priority_assessment"]
+    assert assessment["provider"] == "lightgbm"
+    assert assessment["model_version"] == "priority-lgbm-1.0.0"
+    assert 0.0 <= assessment["score"] <= 1.0
+    assert assessment["priority"] in {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
+    assert assessment["shap_contributions"]
+    assert assessment["shap_additivity_error"] <= 0.000001
 
 
 # ---------------------------------------------------------------------
@@ -560,6 +567,9 @@ def test_evidence_contains_every_required_stage(client: Any, approved_case: dict
 
     assert body["break_facts"]["expected_value"] == AUTHORITATIVE_VALUE
     assert body["break_facts"]["observed_value"] == LEGACY_VALUE
+    assert body["ml_priority_assessment"]["provider"] == "lightgbm"
+    assert body["ml_priority_assessment"]["training_data"] == "SYNTHETIC_ONLY"
+    assert body["ml_priority_assessment"]["shap_contributions"]
     assert body["ai_recommendation"]["recommended_action"] == "CORRECT_LEGACY_BOOKING_FIELD"
     assert body["ai_recommendation"]["citations"]
     assert body["ai_recommendation"]["confidence"] > 0

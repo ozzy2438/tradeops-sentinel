@@ -312,12 +312,41 @@ if rows:
             case = api_get(f"/remediation/cases/{remediation_case_id}/evidence")
             if case:
                 rec = case.get("ai_recommendation") or {}
+                ml_priority = case.get("ml_priority_assessment") or {}
                 decision = case.get("policy_decision") or {}
 
                 rc1, rc2, rc3 = st.columns(3)
-                rc1.metric("Predicted priority", rec.get("priority", "—"))
+                rc1.metric(
+                    "ML priority",
+                    ml_priority.get("priority", "—"),
+                    help="Advisory LightGBM queue priority; it cannot authorise an action.",
+                )
                 rc2.metric("Confidence", f"{rec.get('confidence', 0):.0%}")
                 rc3.metric("Risk tier", rec.get("risk_tier", "—"))
+
+                if ml_priority:
+                    st.markdown(
+                        f"**LightGBM escalation score** — "
+                        f"`{ml_priority.get('score', 0):.1%}` "
+                        f"(model `{ml_priority.get('model_version', '—')}`; "
+                        "synthetic training only)"
+                    )
+                    factors = (ml_priority.get("shap_contributions") or [])[:5]
+                    if factors:
+                        st.markdown("**Top SHAP factors**")
+                        st.dataframe(
+                            [
+                                {
+                                    "feature": item["feature"],
+                                    "value": item["feature_value"],
+                                    "SHAP": item["shap_value"],
+                                    "effect": item["direction"],
+                                }
+                                for item in factors
+                            ],
+                            hide_index=True,
+                            use_container_width=True,
+                        )
 
                 st.markdown(f"**Predicted root cause** — {rec.get('predicted_root_cause', '—')}")
                 st.markdown(

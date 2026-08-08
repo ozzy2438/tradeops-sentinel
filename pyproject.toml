@@ -22,6 +22,9 @@ dashboard = [
     "httpx>=0.27",
     "pandas>=2.2",
 ]
+ml = [
+    "lightgbm==4.7.0",
+]
 dev = [
     "fastapi>=0.115",
     "httpx>=0.27",
@@ -53,12 +56,13 @@ packages = [
     "packages.reconciliation",
     "packages.oracle",
     "packages.remediation",
+    "packages.priority_model",
     "apps.api",
 ]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["openai", "azure.*"]
+module = ["openai", "azure.*", "lightgbm", "numpy"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -78,5 +82,6 @@ namespaces = true
 "packages.contracts" = ["schemas/*.json", "examples/**/*.json"]
 "packages.oracle" = ["evidence/*.json"]
 "packages.persistence" = ["ddl/*.sql"]
+"packages.priority_model" = ["artifacts/*.txt", "artifacts/*.json"]
 "packages.reconciliation" = ["evidence/*.json"]
 "packages.remediation" = ["runbooks/*.md"]

@@ -16,6 +16,7 @@ import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime
+from functools import lru_cache
 from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
@@ -24,6 +25,12 @@ from pydantic import BaseModel, Field
 
 from packages.persistence.adapter import DatabaseUnavailableError, PostgresAdapter
 from packages.persistence.inbox import SourceConflictError
+from packages.priority_model.models import (
+    PriorityAssessment,
+    PriorityModelUnavailableError,
+    PriorityProvider,
+)
+from packages.priority_model.provider import LightGBMPriorityProvider
 from packages.remediation import triage as remediation_triage
 from packages.remediation.ai_provider import AIProvider, get_provider
 from packages.remediation.envelope import EnvelopeSigningError, build_envelope
@@ -175,6 +182,16 @@ def get_ai_provider() -> AIProvider:
 ProviderDep = Annotated[AIProvider, Depends(get_ai_provider)]
 
 
+@lru_cache(maxsize=1)
+def get_priority_provider() -> PriorityProvider:
+    """Load the validated immutable model tuple once per API process."""
+
+    return LightGBMPriorityProvider()
+
+
+PriorityProviderDep = Annotated[PriorityProvider, Depends(get_priority_provider)]
+
+
 # --------------------------------------------------------------------------
 # response models
 # --------------------------------------------------------------------------
@@ -269,6 +286,7 @@ class RemediationCaseRequest(BaseModel):
 class RemediationCaseResponse(BaseModel):
     case_id: str
     recommendation: AIRecommendation
+    priority_assessment: PriorityAssessment
     policy_decision: PolicyDecision
 
 
@@ -348,6 +366,17 @@ async def _envelope_signing_unavailable(_: Any, exc: EnvelopeSigningError) -> JS
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content=_safe_error(exc, "remediation signing secret is not configured").model_dump(),
+    )
+
+
+@app.exception_handler(PriorityModelUnavailableError)
+async def _priority_model_unavailable(_: Any, exc: PriorityModelUnavailableError) -> JSONResponse:
+    """Fail closed and never fabricate a queue priority."""
+
+    LOGGER.error("priority_model_unavailable", extra={"error": type(exc).__name__})
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content=_safe_error(exc, "priority model is unavailable").model_dump(),
     )
 
 
@@ -510,6 +539,7 @@ def remediation_create_case(
     adapter: Adapter,
     store: RemediationStoreDep,
     provider: ProviderDep,
+    priority_provider: PriorityProviderDep,
     _: Guard,
     body: RemediationCaseRequest,
 ) -> RemediationCaseResponse:
@@ -526,6 +556,7 @@ def remediation_create_case(
             product_adapter=adapter,
             store=store,
             provider=provider,
+            priority_provider=priority_provider,
         )
     except remediation_triage.BreakNotFoundError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -534,6 +565,7 @@ def remediation_create_case(
     return RemediationCaseResponse(
         case_id=result["case_id"],
         recommendation=result["recommendation"],
+        priority_assessment=result["priority_assessment"],
         policy_decision=result["decision"],
     )
 

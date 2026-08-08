@@ -7,7 +7,8 @@
 > The product runs end to end: load synthetic FX data, assemble policy-enforced
 > canonical trade state, run deterministic reconciliation, and inspect detected
 > breaks with full provenance in a dashboard. One tightly bounded controlled-AI
-> remediation flow is implemented, including an optional Azure OpenAI provider.
+> remediation flow is implemented, including an optional Azure OpenAI provider
+> and one local LightGBM priority model with per-case SHAP evidence.
 > TS-14 audit ledger, TS-15 release-evidence gate and the Playwright executor
 > remain out of scope.
 
@@ -90,11 +91,14 @@ are idempotent.
 
 ## What this is
 
-A production-like reference implementation demonstrating how deterministic reconciliation, one constrained/advisory LLM, human-controlled maker-checker approval, a signed/idempotent action instruction, and read-back-verified legacy-system remediation can operate together for **synthetic** FX Spot and FX Forward post-trade exception handling.
+A production-like reference implementation demonstrating how deterministic reconciliation, an explainable advisory priority model, one constrained/advisory LLM, human-controlled maker-checker approval, a signed/idempotent action instruction, and read-back-verified legacy-system remediation can operate together for **synthetic** FX Spot and FX Forward post-trade exception handling.
 
 This is **not** an autonomous trading system. AI investigates, classifies, and recommends — it never approves, signs, dispatches, or executes a material change on its own. See [`docs/adr/`](docs/adr/) for the full architecture decision record set and the [MVP Release Charter](docs/CHARTER_REFERENCE.md) for the approved scope.
 
 The one implemented, end-to-end demonstration of that AI/maker-checker/signed-instruction/read-back-verified loop — for exactly one break family and one field — is documented in [`docs/AI_REMEDIATION.md`](docs/AI_REMEDIATION.md).
+The synthetic LightGBM training contract, immutable model tuple, validation
+metrics, leakage boundary, and SHAP additivity check are documented in
+[`docs/ML_PRIORITY_MODEL.md`](docs/ML_PRIORITY_MODEL.md).
 
 ### Optional live Azure OpenAI recommendation
 
@@ -150,6 +154,7 @@ packages/generator/    # deterministic synthetic FX generator (ADR-006) — Epic
 packages/persistence/  # inbox semantics, SOT-enforced canonical assembly, psycopg 3 adapter + DDL
 packages/reconciliation/ # deterministic reconciliation engine (ADR-002) — Epic E5
 packages/remediation/  # controlled AI recommendation, policy, approvals, envelope and execution
+packages/priority_model/ # versioned LightGBM inference, training contract and SHAP evidence
 packages/oracle/       # independently implemented reconciliation oracle + import isolation
 packages/evidence/     # planned TS-14 hash-chain/verifier seam (README only)
 packages/executor/     # planned Playwright executor seam (README only)
@@ -167,7 +172,7 @@ Python 3.11 or later is required.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,ml]"
 pytest -q
 ruff check .
 ruff format --check .
