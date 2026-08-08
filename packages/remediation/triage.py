@@ -13,6 +13,7 @@ import secrets
 from typing import Any
 
 from packages.persistence.adapter import PostgresAdapter
+from packages.priority_model.models import PriorityAssessment, PriorityProvider
 
 from . import policy, retrieval
 from .ai_provider import AIProvider
@@ -112,6 +113,7 @@ def generate_case(
     product_adapter: PostgresAdapter,
     store: RemediationStore,
     provider: AIProvider,
+    priority_provider: PriorityProvider,
 ) -> dict[str, Any]:
     """Generate one AI recommendation + policy decision for one break.
 
@@ -139,6 +141,7 @@ def generate_case(
     recommendation: AIRecommendation = provider.recommend(
         facts=facts, candidate_citations=candidates
     )
+    priority_assessment: PriorityAssessment = priority_provider.assess(facts)
     decision: PolicyDecision = policy.evaluate(recommendation, facts)
 
     case_id = _new_case_id()
@@ -156,6 +159,7 @@ def generate_case(
         break_facts=facts.model_dump(mode="json"),
         ai_recommendation=recommendation.model_dump(mode="json"),
         policy_decision=decision.model_dump(mode="json"),
+        ml_priority_assessment=priority_assessment.model_dump(mode="json"),
     )
 
     # Seed the mock legacy record from the observed (booking) side of the
@@ -172,7 +176,12 @@ def generate_case(
         source_observation_id=str(observed_ref["source_observation_id"]),
     )
 
-    return {"case_id": case_id, "recommendation": recommendation, "decision": decision}
+    return {
+        "case_id": case_id,
+        "recommendation": recommendation,
+        "priority_assessment": priority_assessment,
+        "decision": decision,
+    }
 
 
 __all__ = [

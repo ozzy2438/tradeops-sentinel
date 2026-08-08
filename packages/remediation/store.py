@@ -168,39 +168,64 @@ class RemediationStore:
         break_facts: dict[str, Any],
         ai_recommendation: dict[str, Any],
         policy_decision: dict[str, Any],
+        ml_priority_assessment: dict[str, Any],
     ) -> None:
         with self._adapter.connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO remediation_cases (
-                    case_id, break_id, run_id, trade_id, tenant_id, portfolio_id,
-                    product_type, ai_provider, break_facts, ai_recommendation, policy_decision
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    case_id,
-                    break_id,
-                    run_id,
-                    trade_id,
-                    tenant_id,
-                    portfolio_id,
-                    product_type,
-                    ai_provider,
-                    json.dumps(break_facts),
-                    json.dumps(ai_recommendation),
-                    json.dumps(policy_decision),
-                ),
-            )
-            connection.commit()
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO remediation_cases (
+                        case_id, break_id, run_id, trade_id, tenant_id, portfolio_id,
+                        product_type, ai_provider, break_facts, ai_recommendation, policy_decision
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        case_id,
+                        break_id,
+                        run_id,
+                        trade_id,
+                        tenant_id,
+                        portfolio_id,
+                        product_type,
+                        ai_provider,
+                        json.dumps(break_facts),
+                        json.dumps(ai_recommendation),
+                        json.dumps(policy_decision),
+                    ),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO remediation_priority_assessments (
+                        case_id, model_provider, model_version, feature_version,
+                        assessment_document
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        case_id,
+                        ml_priority_assessment["provider"],
+                        ml_priority_assessment["model_version"],
+                        ml_priority_assessment["feature_version"],
+                        json.dumps(ml_priority_assessment),
+                    ),
+                )
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
 
     def get_case(self, case_id: str) -> dict[str, Any] | None:
         with self._adapter.connect() as connection:
             row = connection.execute(
                 """
-                SELECT case_id, break_id, run_id, trade_id, tenant_id, portfolio_id,
-                       product_type, ai_provider, break_facts, ai_recommendation,
-                       policy_decision, created_at
-                FROM remediation_cases WHERE case_id = %s
+                SELECT cases.case_id, cases.break_id, cases.run_id, cases.trade_id,
+                       cases.tenant_id, cases.portfolio_id, cases.product_type,
+                       cases.ai_provider, cases.break_facts, cases.ai_recommendation,
+                       cases.policy_decision, cases.created_at,
+                       priority.assessment_document AS ml_priority_assessment
+                FROM remediation_cases AS cases
+                LEFT JOIN remediation_priority_assessments AS priority
+                  ON priority.case_id = cases.case_id
+                WHERE cases.case_id = %s
                 """,
                 (case_id,),
             ).fetchone()

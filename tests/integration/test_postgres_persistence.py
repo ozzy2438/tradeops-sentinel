@@ -205,6 +205,11 @@ def test_migration_is_reapplicable_without_weakening_append_only_triggers() -> N
             "source_event_inbox_no_truncate",
             "source_event_inbox_no_update",
         ]
+        assert _trigger_names(connection, "remediation_priority_assessments") == [
+            "remediation_priority_assessments_no_delete",
+            "remediation_priority_assessments_no_truncate",
+            "remediation_priority_assessments_no_update",
+        ]
         assert _trigger_names(connection, "canonical_trade_state_versions") == [
             "canonical_trade_state_versions_no_delete",
             "canonical_trade_state_versions_no_truncate",

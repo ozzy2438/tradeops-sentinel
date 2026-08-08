@@ -10,7 +10,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY packages ./packages
-RUN pip install --upgrade pip setuptools>=83.0.0 && pip install ".[api,azure]"
+RUN pip install --upgrade pip setuptools>=83.0.0 && pip install ".[api,azure,ml]"
 
 COPY apps ./apps
 
