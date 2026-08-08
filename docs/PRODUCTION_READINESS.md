@@ -30,7 +30,15 @@ validated in the target environment.
   bounded completion size/minimal reasoning, keyless Microsoft Entra
   authentication support, and a synthetic one-call validation script. The
   deterministic provider remains the default for CI, and the model has no
-  approval or execution capability.
+  approval or execution capability;
+- one versioned local LightGBM priority model with a fixed synthetic holdout,
+  model/hash/library binding, leakage checks and per-case SHAP additivity
+  evidence. It is advisory and cannot authorise an action;
+- one short-lived attended UiPath Community browser boundary against the
+  synthetic mock legacy application: Maker/Checker prerequisite, digest-only
+  launch credential persistence, server-side signed-envelope verification,
+  at-most-once semantics, read-back, post-action reconciliation and append-only
+  execution events. This is not unattended or production UiPath automation.
 
 ## Manual `main` branch-protection checklist
 

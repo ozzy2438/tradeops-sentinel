@@ -1,6 +1,10 @@
 # Architecture Decision Records — Index
 
-All 14 ADRs approved as the Sprint 1 implementation baseline (owner approval: "Create the GitHub repository and commence Sprint 1", 2026-07-31). Full narrative context lives in `../CHARTER_REFERENCE.md` (the MVP Release Charter). ADR frontmatter cleanup (`status: proposed` → `status: draft`, consistency item C-12) was applied by Epic E2 issue **TS-6**; all 14 ADRs now carry `status: draft` and this index is current with the frontmatter.
+ADRs 001–014 form the approved Sprint 1 implementation baseline (owner
+approval: "Create the GitHub repository and commence Sprint 1", 2026-07-31).
+ADR-015 records the separately authorised post-MVP attended UiPath portfolio
+extension. Full narrative context lives in `../CHARTER_REFERENCE.md` (the MVP
+Release Charter).
 
 | ADR | Title | Owner | Implemented by | Closes |
 |---|---|---|---|---|
@@ -18,6 +22,7 @@ All 14 ADRs approved as the Sprint 1 implementation baseline (owner approval: "C
 | [ADR-012](ADR-012_TAMPER_EVIDENT_AUDIT_AND_EVIDENCE_POLICY.md) | Tamper-Evident Audit & Evidence Policy | Fizz | #5 | Bounded evidence claim (never WORM/immutable) |
 | [ADR-013](ADR-013_FAILURE_REPLAY_REVOCATION_AND_UNCERTAIN_EXECUTION_SAFETY.md) | Failure, Replay, Revocation & Uncertain-Execution Safety | Fizz | — | Required failure-injection matrix |
 | [ADR-014](ADR-014_RELEASE_ASSURANCE_AND_INDEPENDENT_SIGN_OFF.md) | Release Assurance & Independent Sign-Off | Fizz | — | No-self-certification release gates |
+| [ADR-015](ADR-015_ATTENDED_UIPATH_COMMUNITY_PORTFOLIO_VALIDATION.md) | Attended UiPath Community Portfolio Validation | Owner | #39 | One bounded attended Community run; no unattended claim |
 
 ## Traceability
 

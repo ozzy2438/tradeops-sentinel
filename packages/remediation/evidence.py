@@ -29,6 +29,7 @@ def case_view(store: RemediationStore, case_id: str) -> dict[str, Any] | None:
     approvals = store.get_approvals(case_id)
     envelope_row = store.get_envelope(case_id)
     executions = store.get_executions(case_id)
+    uipath_events = store.get_uipath_events(case_id)
     evidence_row = store.get_evidence(case_id)
 
     return {
@@ -74,6 +75,22 @@ def case_view(store: RemediationStore, case_id: str) -> dict[str, Any] | None:
             }
             for row in executions
         ],
+        "uipath_execution_events": [
+            {
+                "run_id": row["run_id"],
+                "event_type": row["event_type"],
+                "expires_at": row["expires_at"],
+                "project_name": row["project_name"],
+                "execution_mode": row["execution_mode"],
+                "robot_reference": row["robot_reference"],
+                "outcome": row["outcome"],
+                "detail": row["detail"],
+                "read_back_value": row["read_back_value"],
+                "applied": row["applied"],
+                "occurred_at": row["occurred_at"],
+            }
+            for row in uipath_events
+        ],
         "evidence_id": evidence_row["evidence_id"] if evidence_row else None,
         "evidence_content_hash": evidence_row["content_hash"] if evidence_row else None,
         "post_action_reconciliation": (
@@ -118,6 +135,7 @@ def finalize_evidence(
         "approvals": view["approvals"],
         "envelope": view["envelope"],
         "executions": view["executions"],
+        "uipath_execution_events": view["uipath_execution_events"],
         "post_action_reconciliation": post_action_reconciliation,
     }
     content_hash = (

@@ -172,26 +172,38 @@ approved allow-list, and — delegated to the mock adapter's row-locked
 check — an unexpected current value or a replay that would create a second
 side effect.
 
-## Mock legacy execution
+## Mock legacy execution and attended UiPath boundary
 
-**UiPath-ready controlled action contract demonstrated through a mock
-legacy-booking adapter.** `MockLegacyBookingAdapter`
-(`packages/remediation/legacy_adapter.py`) is the exact boundary a UiPath
-robot, or any other legacy-system integration, would sit behind: read the
-current record, apply exactly one verified field change under a signed
-envelope, report what happened. **No real UiPath environment is installed,
-configured, or connected anywhere in this repository.** This is a mock of
-that boundary, not an integration with it.
+`MockLegacyBookingAdapter` (`packages/remediation/legacy_adapter.py`) remains
+the only component that writes the synthetic legacy-booking row. It applies
+exactly one verified field change under the signed envelope and returns a
+typed read-back result. Neither the LLM nor the UiPath workflow receives a
+database credential.
 
-This mock is a plain Python/PostgreSQL adapter, deliberately simpler than
-the browser-automation executor
-[`docs/adr/ADR-011_LEGACY_AUTOMATION_RUNTIME_AND_COST_DECISION.md`](adr/ADR-011_LEGACY_AUTOMATION_RUNTIME_AND_COST_DECISION.md)
-proposes for a fuller MVP (a Playwright-driven mock legacy *application*,
-still unimplemented, status: draft). This slice's task explicitly excluded
-building that: no web app to automate, no browser, no UiPath quote or
-environment — just the signed-envelope → verify-then-write → read-back
-contract a UiPath robot or a Playwright executor would eventually sit
-behind.
+The post-MVP portfolio extension adds a real, manually triggered **attended
+UiPath Community** browser path in front of that boundary:
+
+1. `POST /remediation/cases/{case_id}/uipath/prepare` is available only after
+   distinct Maker and Checker approvals. It issues/reuses the signed envelope
+   and returns a 15-minute launch URL.
+2. The raw launch token is returned once. PostgreSQL stores only its SHA-256
+   digest and expiry in the append-only `uipath_execution_events` stream.
+3. UiPath Studio Web/Assistant opens the local mock-legacy HTML page and clicks
+   `Apply approved correction`.
+4. The form endpoint re-verifies the token, expiry, policy decision, approvals,
+   signed envelope, allow-list, expected old value and idempotency key before
+   calling the same adapter.
+5. `STARTED` and `COMPLETED` events record the robot reference, typed outcome,
+   read-back value and whether a write occurred. A genuine write also triggers
+   the normal scoped reconciliation and frozen evidence finalisation.
+
+After the single attended run is recorded as live-validated,
+`docs/UIPATH_ATTENDED_VALIDATION.md` will prove one UiPath execution against
+the existing synthetic mock legacy application. It does **not** prove
+unattended Orchestrator dispatch, serverless robots, production scheduling, a
+Windows robot host, or access to a real banking system. ADR-011 remains the
+historical MVP cost/runtime decision, and ADR-015 records this later attended
+validation.
 
 ## Post-action verification and idempotency
 
@@ -239,8 +251,8 @@ immediately after execution.
 
 ## API
 
-Five endpoints, added to the existing FastAPI service, behind the same
-`X-API-Key` guard as every other endpoint:
+The five operator remediation endpoints are behind the same `X-API-Key` guard
+as the rest of the product API:
 
 - `POST /remediation/cases` — generate an AI recommendation and policy
   decision for one break.
@@ -251,6 +263,20 @@ Five endpoints, added to the existing FastAPI service, behind the same
   corrected observation, rerun scoped reconciliation, and finalise evidence.
 - `GET /remediation/cases/{case_id}/evidence` — full case state at any
   stage; the frozen evidence snapshot once execution has succeeded.
+
+The attended extension adds:
+
+- `POST /remediation/cases/{case_id}/uipath/prepare` — authenticated operator
+  endpoint that creates a short-lived attended run after both approvals;
+- `GET /legacy/uipath/{run_id}?token=...` — token-bound mock-legacy screen;
+- `POST /legacy/uipath/{run_id}/apply?token=...` — token-bound form target that
+  performs the same server-side verification and execution contract.
+
+The two browser endpoints intentionally use the high-entropy short-lived token
+instead of the API key so UiPath receives no product or database credential.
+Responses disable caching and referrers. The URL can still appear in local
+browser history, so it must be treated as an ephemeral bearer link and allowed
+to expire after the attended run.
 
 No new user-management system, RBAC, or authentication mechanism — approver
 identity is a free-text field on the approval request, matching this
@@ -291,10 +317,10 @@ complete evidence-record content.
 **In scope for this slice:** exactly what is described above, for exactly
 one break family and one field.
 
-**Explicitly out of scope:** root-cause model training, MLflow, a real UiPath
-installation, cloud deployment infrastructure, OAuth, a general RBAC system,
-new asset classes, new reconciliation rules or break families beyond the
-existing eight, autonomous trading, production booking-system integration,
-additional dashboards, and any further product-roadmap expansion. This PR
-keeps those boundaries; the bounded LightGBM+SHAP priority extension is
-documented separately in [`ML_PRIORITY_MODEL.md`](ML_PRIORITY_MODEL.md).
+**Explicitly out of scope:** root-cause model training, MLflow, unattended or
+serverless UiPath execution, cloud deployment infrastructure, OAuth, a general
+RBAC system, new asset classes, new reconciliation rules or break families
+beyond the existing eight, autonomous trading, production booking-system
+integration, additional dashboards, and any further product-roadmap expansion.
+The bounded LightGBM+SHAP priority extension is documented separately in
+[`ML_PRIORITY_MODEL.md`](ML_PRIORITY_MODEL.md).
