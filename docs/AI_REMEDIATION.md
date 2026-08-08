@@ -62,20 +62,42 @@ generalised to.
 
 ## AI provider
 
-One live provider is implemented: `AnthropicProvider`
-(`packages/remediation/ai_provider.py`), using the `anthropic` Python SDK
-against `claude-sonnet-5` by default. **No live Anthropic credential was
-available while building this slice.** `AnthropicProvider`'s request/response
-handling is implemented and structurally correct, but it has not been
-exercised against a real API call, and nothing in this repository claims
-otherwise.
+Three providers implement the same narrow `AIProvider` contract in
+`packages/remediation/ai_provider.py`:
 
-`DeterministicTestProvider` is the default (`TRADEOPS_AI_PROVIDER` unset) and
-is what every test and this demo actually run against. It is a plain
-rule-based provider, not a model: it supports exactly the one scenario above
-and abstains (with `abstain_reason: "unsupported_break_pattern"`) for
-anything else. Set `TRADEOPS_AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`
-to select the live provider; nothing else changes.
+- `DeterministicTestProvider` remains the default and is used throughout CI.
+  It is a rule-based test double, not a model. It supports exactly the one
+  scenario above and abstains elsewhere.
+- `AzureOpenAIProvider` uses Azure OpenAI structured outputs. It sends only
+  `BreakFacts` plus retrieved synthetic runbook sections, requires every
+  output field in a strict transport schema, immediately converts the result
+  to `AIRecommendation`, caps completion output at 400 tokens, and defaults
+  reasoning effort to `minimal`. The transport represents proposed fields as a
+  bounded list because Azure Structured Outputs does not accept dynamic-key
+  maps; the deterministic policy still receives the unchanged dictionary
+  contract. It authenticates with the
+  current Microsoft Entra identity by default (`DefaultAzureCredential`), or
+  with `AZURE_OPENAI_API_KEY` when explicitly supplied. Credentials are never
+  persisted or printed by this repository.
+- `AnthropicProvider` uses the `anthropic` Python SDK against
+  `claude-sonnet-5` by default. Its adapter is implemented, but it has not been
+  exercised against a live Anthropic API call and no such claim is made.
+
+Select a provider with `TRADEOPS_AI_PROVIDER=deterministic`,
+`azure-openai`, or `anthropic`. Unknown names fail closed. Azure configuration
+is supplied through `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`,
+`AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_MAX_COMPLETION_TOKENS`, and
+`AZURE_OPENAI_REASONING_EFFORT`; see `.env.example`.
+
+For a bounded live Azure check, run
+`scripts/run_azure_recommendation_demo.py`. The script sends one synthetic
+break, validates the strict response, and passes it through the same
+deterministic policy engine. It does not open a database connection, issue an
+action envelope, request approval, or execute a correction. The live provider
+is advisory only; all authorization and execution boundaries below remain
+unchanged. This path was exercised successfully against the deployed
+`gpt-5.4-mini` model on 2026-08-07; the sanitized result and exact claim
+boundary are recorded in `docs/AZURE_OPENAI_VALIDATION.md`.
 
 ## Runbook retrieval
 

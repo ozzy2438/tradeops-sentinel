@@ -89,11 +89,14 @@ class AIRecommendation(RemediationModel):
     confidence: float = Field(ge=0.0, le=1.0)
     priority: Priority
     recommended_action: RecommendedAction | None
-    proposed_fields: dict[str, str] = Field(default_factory=dict)
+    # All response fields are required so the same contract is accepted by
+    # Azure Structured Outputs. Empty collections and null still represent
+    # abstention, but the model must emit every key explicitly.
+    proposed_fields: dict[str, str]
     risk_tier: RiskTier
-    required_approvals: list[ApprovalRole] = Field(default_factory=list)
-    citations: list[Citation] = Field(default_factory=list)
-    abstain_reason: str | None = Field(default=None, max_length=2000)
+    required_approvals: list[ApprovalRole]
+    citations: list[Citation]
+    abstain_reason: str | None = Field(max_length=2000)
 
     @model_validator(mode="after")
     def _action_and_abstain_are_mutually_exclusive(self) -> AIRecommendation:

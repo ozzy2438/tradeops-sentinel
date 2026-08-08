@@ -8,6 +8,10 @@ license = "Apache-2.0"
 dependencies = ["pydantic>=2.8"]
 
 [project.optional-dependencies]
+azure = [
+    "openai>=1.42",
+    "azure-identity>=1.17",
+]
 api = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
@@ -52,6 +56,10 @@ packages = [
     "apps.api",
 ]
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["openai", "azure.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "src"]

@@ -25,7 +25,12 @@ validated in the target environment.
   deterministic fail-closed policy, Maker+Checker approval, a signed/
   expiring/idempotent action envelope, mock legacy-booking execution with
   row-locked replay/timeout-recovery safety, post-action re-verification, and
-  a frozen evidence record — see `docs/AI_REMEDIATION.md`.
+  a frozen evidence record — see `docs/AI_REMEDIATION.md`;
+- optional Azure OpenAI recommendation provider with strict structured output,
+  bounded completion size/minimal reasoning, keyless Microsoft Entra
+  authentication support, and a synthetic one-call validation script. The
+  deterministic provider remains the default for CI, and the model has no
+  approval or execution capability.
 
 ## Manual `main` branch-protection checklist
 
