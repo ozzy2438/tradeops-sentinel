@@ -8,7 +8,9 @@
 > canonical trade state, run deterministic reconciliation, and inspect detected
 > breaks with full provenance in a dashboard. One tightly bounded controlled-AI
 > remediation flow is implemented, including an optional Azure OpenAI provider
-> and one local LightGBM priority model with per-case SHAP evidence.
+> and one local LightGBM priority model with per-case SHAP evidence. A
+> short-lived, attended UiPath Community browser boundary is implemented for
+> the same approved single-field correction; it is not unattended automation.
 > TS-14 audit ledger, TS-15 release-evidence gate and the Playwright executor
 > remain out of scope.
 
@@ -100,6 +102,30 @@ The synthetic LightGBM training contract, immutable model tuple, validation
 metrics, leakage boundary, and SHAP additivity check are documented in
 [`docs/ML_PRIORITY_MODEL.md`](docs/ML_PRIORITY_MODEL.md).
 
+### Attended UiPath Community execution
+
+The post-MVP portfolio path uses UiPath Studio Web plus UiPath Assistant on
+macOS to open a short-lived local mock-legacy page and click exactly one
+approved correction. Before showing that page, the API requires distinct
+Maker and Checker approvals and issues/reuses a signed, expiring, idempotent
+action envelope. The server stores only a SHA-256 digest of the one-time
+launch token and re-verifies every control before the write. The resulting
+read-back and post-action reconciliation are appended to case evidence.
+
+Prepare a local attended run after starting the product with the deterministic
+provider:
+
+```bash
+export TRADEOPS_API_KEY=<the same local API key used by the API>
+python scripts/prepare_uipath_demo.py
+```
+
+Use the returned URL only as the UiPath Studio Web browser target; it expires
+within 15 minutes. See
+[`docs/UIPATH_ATTENDED_VALIDATION.md`](docs/UIPATH_ATTENDED_VALIDATION.md) and
+[ADR-015](docs/adr/ADR-015_ATTENDED_UIPATH_COMMUNITY_PORTFOLIO_VALIDATION.md)
+for the exact validated boundary and limitations.
+
 ### Optional live Azure OpenAI recommendation
 
 The product remains deterministic by default. To exercise only the advisory
@@ -133,7 +159,11 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 - **"Exactly once"** — actions are *at-most-once semantic* with read-back verification, never claimed exactly-once.
 - **"Secure" / "production-ready"** — without naming the specific control and its test.
 - **"Regulatory-compliant"** — this is a portfolio/reference implementation using synthetic data only; it does not claim regulatory compliance.
-- Any UiPath or cloud-deployment result that was not actually run. The one implemented mock legacy executor (`MockLegacyBookingAdapter`, see `docs/AI_REMEDIATION.md`) is a plain Python/PostgreSQL adapter — not Playwright, and not UiPath. ADR-011 proposes a separate, still-unimplemented Playwright-driven executor for a fuller future MVP; nothing in this repository runs it today. Any demo material must say so explicitly.
+- Any UiPath or cloud-deployment result that was not actually run. A named,
+  manually triggered **attended Community** run may be claimed only after it
+  is recorded as live-validated in `docs/UIPATH_ATTENDED_VALIDATION.md`. It is
+  never unattended Orchestrator dispatch, serverless execution, a production
+  deployment, or a connection to a real legacy banking system.
 - Live validation of the `anthropic` LLM provider. `AnthropicProvider` is implemented but has never been exercised against a real API call in this repository. The separate Azure OpenAI provider was exercised only through the single bounded synthetic validation recorded in `docs/AZURE_OPENAI_VALIDATION.md`; that result must not be broadened into a production or autonomous-execution claim.
 
 ## Scope boundaries (MVP)
@@ -146,7 +176,7 @@ Per the approved MVP Release Charter (§27), the following claims are **forbidde
 ## Repository structure
 
 ```
-apps/api/              # FastAPI product service (9 product endpoints + 5 remediation endpoints)
+apps/api/              # FastAPI product, remediation and attended-UiPath browser service
 apps/dashboard/        # Streamlit dashboard (calls the API only)
 apps/app/              # planned modular application runtime seam (README only)
 packages/contracts/    # canonical model + schemas (ADR-001/002/005) — Epic E2
@@ -208,12 +238,10 @@ See [LICENSE](LICENSE).
 
 ## Known limitations
 
-- **`POST_ACTION_VERIFICATION_FAILURE` is not surfaced by the running product.**
-  The reconciliation engine supports all eight approved break families (proven
-  by the unchanged TS-11 suite), but this family requires an executed action
-  with pre/post read-back — the ADR-011 Playwright executor, which is out of
-  scope here. The product pipeline therefore detects **seven of eight** families.
-  This is stated rather than papered over.
+- `POST_ACTION_VERIFICATION_FAILURE` is meaningful only after a controlled
+  action. The ordinary corpus reconciliation path therefore produces seven of
+  the eight families; the remediation and attended-UiPath paths perform scoped
+  post-action reconciliation and persist its explicit PASS/failure evidence.
 - Linkage decisions are derived deterministically from observation content, not
   produced by a dedicated linkage engine (out of scope).
 - Conflicting deliveries are quarantined in `source_event_conflicts` rather than

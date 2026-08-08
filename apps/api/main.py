@@ -1,10 +1,10 @@
 """TradeOps Sentinel product API.
 
 A deliberately small FastAPI surface over the existing deterministic core.
-Nine product endpoints plus five controlled-AI remediation endpoints (see
-``docs/AI_REMEDIATION.md``), one API-key guard, typed errors. No
-registration, OAuth, JWT or RBAC -- those are explicitly out of scope for
-this MVP.
+Product, controlled-AI remediation and attended-UiPath browser endpoints
+(see ``docs/AI_REMEDIATION.md``), one API-key guard for operator endpoints,
+typed errors. No registration, OAuth, JWT or RBAC -- those are explicitly
+out of scope for this MVP.
 """
 
 from __future__ import annotations
@@ -15,12 +15,14 @@ import os
 import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
+from html import escape
 from typing import Annotated, Any, Literal
+from urllib.parse import urlencode
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from packages.persistence.adapter import DatabaseUnavailableError, PostgresAdapter
@@ -45,6 +47,7 @@ from packages.remediation.models import (
     recommendation_content_hash,
 )
 from packages.remediation.store import DuplicateApprovalRoleError, RemediationStore
+from packages.remediation.uipath import issue_launch_credential, token_matches
 
 from .service import (
     DEMO_PORTFOLIO_IDS,
@@ -292,6 +295,15 @@ class RemediationCaseResponse(BaseModel):
 
 class RemediationApprovalRequest(BaseModel):
     approver_identity: str = Field(min_length=1, max_length=200)
+
+
+class UiPathPrepareResponse(BaseModel):
+    run_id: str
+    case_id: str
+    project_name: str
+    execution_mode: Literal["ATTENDED_COMMUNITY"] = "ATTENDED_COMMUNITY"
+    launch_url: str
+    expires_at: datetime
 
 
 class ErrorResponse(BaseModel):
@@ -611,6 +623,86 @@ def _submit_remediation_approval(
     return view
 
 
+UIPATH_PROJECT_NAME = "TradeOps Sentinel Attended Executor"
+
+
+def _load_approvals(
+    store: RemediationStore, case_id: str
+) -> tuple[list[Approval], dict[str, Any], dict[str, Any]]:
+    rows = store.get_approvals(case_id)
+    maker = next((row for row in rows if row["role"] == "MAKER"), None)
+    checker = next((row for row in rows if row["role"] == "CHECKER"), None)
+    if maker is None or checker is None:
+        raise HTTPException(
+            status_code=409,
+            detail="both maker and checker approval are required before execution",
+        )
+    approvals = [
+        Approval(
+            role=row["role"],
+            approver_identity=row["approver_identity"],
+            decision=row["decision"],
+            approved_recommendation_hash=row["approved_recommendation_hash"],
+            decided_at=row["decided_at"],
+        )
+        for row in rows
+    ]
+    return approvals, maker, checker
+
+
+def _load_or_issue_envelope(
+    store: RemediationStore,
+    *,
+    case: dict[str, Any],
+    decision: PolicyDecision,
+    maker: dict[str, Any],
+    checker: dict[str, Any],
+) -> ActionEnvelope:
+    envelope_row = store.get_envelope(case["case_id"])
+    if envelope_row is None:
+        assert decision.approved_field_path is not None
+        assert decision.approved_value is not None
+        draft = build_envelope(
+            case_id=case["case_id"],
+            trade_id=case["trade_id"],
+            tenant_id=case["tenant_id"],
+            portfolio_id=case["portfolio_id"],
+            field_path=decision.approved_field_path,
+            approved_value=decision.approved_value,
+            expected_old_value=case["break_facts"]["observed_value"],
+            maker_identity=maker["approver_identity"],
+            checker_identity=checker["approver_identity"],
+            idempotency_key=f"idem_{case['case_id']}",
+        )
+        envelope_row = store.insert_envelope_if_absent(
+            case_id=case["case_id"],
+            idempotency_key=draft.idempotency_key,
+            envelope_document=draft.model_dump(mode="json"),
+            content_hash=draft.content_hash,
+            issued_at=draft.issued_at,
+            expires_at=draft.expires_at,
+        )
+    return ActionEnvelope.model_validate(envelope_row["envelope_document"])
+
+
+def _verify_after_applied_action(
+    adapter: PostgresAdapter,
+    store: RemediationStore,
+    *,
+    case: dict[str, Any],
+    envelope: ActionEnvelope,
+) -> dict[str, Any]:
+    ingest_corrected_booking_observation(
+        adapter,
+        trade_id=case["trade_id"],
+        field_path=envelope.field_path,
+        approved_value=envelope.approved_value,
+    )
+    post_action = rerun_trade_reconciliation(adapter, trade_id=case["trade_id"])
+    finalize_evidence(store, case_id=case["case_id"], post_action_reconciliation=post_action)
+    return post_action
+
+
 @app.post("/remediation/cases/{case_id}/maker-approval", tags=["remediation"])
 def remediation_maker_approval(
     store: RemediationStoreDep, _: Guard, case_id: str, body: RemediationApprovalRequest
@@ -656,69 +748,236 @@ def remediation_execute(
             status_code=409,
             detail=f"case is not eligible for execution (outcome={decision.outcome})",
         )
-    approvals_rows = store.get_approvals(case_id)
-    maker_row = next((row for row in approvals_rows if row["role"] == "MAKER"), None)
-    checker_row = next((row for row in approvals_rows if row["role"] == "CHECKER"), None)
-    if maker_row is None or checker_row is None:
-        raise HTTPException(
-            status_code=409,
-            detail="both maker and checker approval are required before execution",
-        )
-
-    envelope_row = store.get_envelope(case_id)
-    if envelope_row is None:
-        assert decision.approved_field_path is not None
-        assert decision.approved_value is not None
-        draft = build_envelope(
-            case_id=case_id,
-            trade_id=case["trade_id"],
-            tenant_id=case["tenant_id"],
-            portfolio_id=case["portfolio_id"],
-            field_path=decision.approved_field_path,
-            approved_value=decision.approved_value,
-            expected_old_value=case["break_facts"]["observed_value"],
-            maker_identity=maker_row["approver_identity"],
-            checker_identity=checker_row["approver_identity"],
-            idempotency_key=f"idem_{case_id}",
-        )
-        envelope_row = store.insert_envelope_if_absent(
-            case_id=case_id,
-            idempotency_key=draft.idempotency_key,
-            envelope_document=draft.model_dump(mode="json"),
-            content_hash=draft.content_hash,
-            issued_at=draft.issued_at,
-            expires_at=draft.expires_at,
-        )
-    envelope = ActionEnvelope.model_validate(envelope_row["envelope_document"])
-
-    approvals = [
-        Approval(
-            role=row["role"],
-            approver_identity=row["approver_identity"],
-            decision=row["decision"],
-            approved_recommendation_hash=row["approved_recommendation_hash"],
-            decided_at=row["decided_at"],
-        )
-        for row in approvals_rows
-    ]
+    approvals, maker, checker = _load_approvals(store, case_id)
+    envelope = _load_or_issue_envelope(
+        store, case=case, decision=decision, maker=maker, checker=checker
+    )
     result = executor.execute(envelope, approvals)
 
-    post_action_reconciliation: dict[str, Any] | None = None
     if result.applied:
-        ingest_corrected_booking_observation(
-            adapter,
-            trade_id=case["trade_id"],
-            field_path=envelope.field_path,
-            approved_value=envelope.approved_value,
-        )
-        post_action_reconciliation = rerun_trade_reconciliation(adapter, trade_id=case["trade_id"])
-        finalize_evidence(
-            store, case_id=case_id, post_action_reconciliation=post_action_reconciliation
-        )
+        _verify_after_applied_action(adapter, store, case=case, envelope=envelope)
 
     view = case_view(store, case_id)
     assert view is not None
     return {"execution_result": result.model_dump(mode="json"), "case": view}
+
+
+@app.post(
+    "/remediation/cases/{case_id}/uipath/prepare",
+    response_model=UiPathPrepareResponse,
+    tags=["remediation", "uipath"],
+)
+def remediation_prepare_uipath(
+    store: RemediationStoreDep,
+    _: Guard,
+    case_id: str,
+) -> UiPathPrepareResponse:
+    """Create one short-lived attended-browser launch after both approvals.
+
+    The raw token appears only in this response. The database stores its
+    digest, and the browser endpoint still re-verifies the signed envelope,
+    Maker/Checker identities, allow-list, expected old value and idempotency.
+    """
+
+    case = _require_remediation_case(store, case_id)
+    decision = PolicyDecision.model_validate(case["policy_decision"])
+    if decision.outcome != "ELIGIBLE_FOR_APPROVAL":
+        raise HTTPException(
+            status_code=409,
+            detail=f"case is not eligible for execution (outcome={decision.outcome})",
+        )
+    _approvals, maker, checker = _load_approvals(store, case_id)
+    envelope = _load_or_issue_envelope(
+        store, case=case, decision=decision, maker=maker, checker=checker
+    )
+    credential = issue_launch_credential()
+    expires_at = min(envelope.expires_at, datetime.now(UTC) + timedelta(minutes=15))
+    store.insert_uipath_event(
+        run_id=credential.run_id,
+        case_id=case_id,
+        event_type="PREPARED",
+        project_name=UIPATH_PROJECT_NAME,
+        token_digest=credential.token_digest,
+        expires_at=expires_at,
+    )
+    base_url = os.getenv("TRADEOPS_UIPATH_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    query = urlencode({"token": credential.token})
+    return UiPathPrepareResponse(
+        run_id=credential.run_id,
+        case_id=case_id,
+        project_name=UIPATH_PROJECT_NAME,
+        launch_url=f"{base_url}/legacy/uipath/{credential.run_id}?{query}",
+        expires_at=expires_at,
+    )
+
+
+def _require_uipath_launch(
+    store: RemediationStore,
+    *,
+    run_id: str,
+    token: str,
+) -> dict[str, Any]:
+    run = store.get_uipath_prepared_run(run_id)
+    if run is None or not token_matches(token, str(run["token_digest"])):
+        raise HTTPException(status_code=404, detail="attended run not found")
+    if datetime.now(UTC) >= run["expires_at"]:
+        raise HTTPException(status_code=410, detail="attended run has expired")
+    return run
+
+
+def _legacy_html(*, title: str, body: str, status_code: int = 200) -> HTMLResponse:
+    document = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(title)}</title>
+  <style>
+    body {{ font: 16px system-ui, sans-serif; max-width: 780px; margin: 48px auto;
+            padding: 0 20px; color: #172033; background: #f5f7fb; }}
+    main {{ background: white; border: 1px solid #dbe2ee; border-radius: 14px;
+            padding: 28px; box-shadow: 0 8px 30px #17203312; }}
+    h1 {{ margin-top: 0; }}
+    dl {{ display: grid; grid-template-columns: 190px 1fr; gap: 10px 18px; }}
+    dt {{ font-weight: 650; color: #526078; }} dd {{ margin: 0; }}
+    code {{ overflow-wrap: anywhere; }}
+    .ready, .success {{ color: #08783e; font-weight: 750; }}
+    .noop {{ color: #825500; font-weight: 750; }}
+    button {{ margin-top: 22px; padding: 12px 18px; border: 0; border-radius: 8px;
+              color: white; background: #1769e0; font-weight: 700; cursor: pointer; }}
+    .note {{ margin-top: 20px; color: #526078; font-size: 14px; }}
+  </style>
+</head>
+<body><main>{body}</main></body>
+</html>"""
+    return HTMLResponse(
+        content=document,
+        status_code=status_code,
+        headers={
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": (
+                "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'"
+            ),
+        },
+    )
+
+
+@app.get("/legacy/uipath/{run_id}", response_class=HTMLResponse, tags=["uipath"])
+def uipath_legacy_screen(
+    store: RemediationStoreDep,
+    run_id: str,
+    token: Annotated[str, Query(min_length=20)],
+) -> HTMLResponse:
+    """Render the intentionally small UI-only mock legacy booking screen."""
+
+    run = _require_uipath_launch(store, run_id=run_id, token=token)
+    _require_remediation_case(store, str(run["case_id"]))
+    envelope_row = store.get_envelope(str(run["case_id"]))
+    assert envelope_row is not None
+    envelope = ActionEnvelope.model_validate(envelope_row["envelope_document"])
+    record = store.read_legacy_booking_record(
+        tenant_id=envelope.tenant_id,
+        portfolio_id=envelope.portfolio_id,
+        trade_id=envelope.trade_id,
+    )
+    if record is None:
+        raise HTTPException(status_code=409, detail="legacy booking record not found")
+    apply_query = urlencode({"token": token, "robot_reference": "uipath-studio-web-attended"})
+    trade_id = escape(envelope.trade_id)
+    portfolio_id = escape(envelope.portfolio_id)
+    field_path = escape(envelope.field_path)
+    current_value = escape(str(record["base_amount_value"]))
+    expected_old_value = escape(envelope.expected_old_value)
+    approved_value = escape(envelope.approved_value)
+    maker_identity = escape(envelope.maker_identity)
+    checker_identity = escape(envelope.checker_identity)
+    body = f"""
+<p id="screen-status" class="ready" data-testid="screen-status">READY FOR ATTENDED RUN</p>
+<h1>Mock Legacy Booking</h1>
+<dl>
+  <dt>Trade ID</dt><dd id="trade-id" data-testid="trade-id"><code>{trade_id}</code></dd>
+  <dt>Portfolio</dt><dd id="portfolio-id">{portfolio_id}</dd>
+  <dt>Approved field</dt><dd id="field-path"><code>{field_path}</code></dd>
+  <dt>Current value</dt><dd id="current-value" data-testid="current-value">
+    {current_value}</dd>
+  <dt>Expected old value</dt><dd id="expected-old-value" data-testid="expected-old-value">
+    {expected_old_value}</dd>
+  <dt>Approved value</dt><dd id="approved-value" data-testid="approved-value">
+    {approved_value}</dd>
+  <dt>Maker</dt><dd>{maker_identity}</dd>
+  <dt>Checker</dt><dd>{checker_identity}</dd>
+</dl>
+<form method="post" action="/legacy/uipath/{escape(run_id)}/apply?{escape(apply_query)}">
+  <button id="apply-approved-correction" data-testid="apply-approved-correction"
+          type="submit">Apply approved correction</button>
+</form>
+<p class="note">The server re-verifies the signed envelope, two-person approval,
+expected old value and idempotency key before any write.</p>
+"""
+    return _legacy_html(title="TradeOps Legacy Booking", body=body)
+
+
+@app.post("/legacy/uipath/{run_id}/apply", response_class=HTMLResponse, tags=["uipath"])
+def uipath_apply_approved_correction(
+    adapter: Adapter,
+    store: RemediationStoreDep,
+    executor: ExecutorDep,
+    run_id: str,
+    token: Annotated[str, Query(min_length=20)],
+    robot_reference: Annotated[str, Query(min_length=1, max_length=200)],
+) -> HTMLResponse:
+    """Execute through the same signed-envelope boundary used by the API."""
+
+    run = _require_uipath_launch(store, run_id=run_id, token=token)
+    case_id = str(run["case_id"])
+    case = _require_remediation_case(store, case_id)
+    decision = PolicyDecision.model_validate(case["policy_decision"])
+    approvals, maker, checker = _load_approvals(store, case_id)
+    envelope = _load_or_issue_envelope(
+        store, case=case, decision=decision, maker=maker, checker=checker
+    )
+    store.insert_uipath_event(
+        run_id=run_id,
+        case_id=case_id,
+        event_type="STARTED",
+        project_name=str(run["project_name"]),
+        robot_reference=robot_reference,
+    )
+    result = executor.execute(envelope, approvals)
+    store.insert_uipath_event(
+        run_id=run_id,
+        case_id=case_id,
+        event_type="COMPLETED",
+        project_name=str(run["project_name"]),
+        robot_reference=robot_reference,
+        outcome=result.outcome,
+        detail=result.detail,
+        read_back_value=result.read_back_value,
+        applied=result.applied,
+    )
+    if result.applied:
+        _verify_after_applied_action(adapter, store, case=case, envelope=envelope)
+
+    css_class = "success" if result.outcome == "SUCCESS" else "noop"
+    escaped_outcome = escape(result.outcome)
+    escaped_read_back = escape(result.read_back_value or "")
+    body = f"""
+<p id="execution-status" class="{css_class}" data-testid="execution-status">COMPLETED</p>
+<h1>UiPath execution receipt</h1>
+<dl>
+  <dt>Run ID</dt><dd id="run-id"><code>{escape(run_id)}</code></dd>
+  <dt>Outcome</dt><dd id="execution-outcome" data-testid="execution-outcome">
+    {escaped_outcome}</dd>
+  <dt>Applied</dt><dd id="execution-applied">{str(result.applied).lower()}</dd>
+  <dt>Read-back value</dt><dd id="read-back-value" data-testid="read-back-value">
+    {escaped_read_back}</dd>
+  <dt>Robot reference</dt><dd>{escape(robot_reference)}</dd>
+</dl>
+<p class="note">{escape(result.detail)}</p>
+"""
+    return _legacy_html(title="UiPath Execution Receipt", body=body)
 
 
 @app.get("/remediation/cases/{case_id}/evidence", tags=["remediation"])

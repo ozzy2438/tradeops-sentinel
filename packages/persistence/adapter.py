@@ -51,6 +51,7 @@ MIGRATION_FILENAMES: tuple[str, ...] = (
     "0003_product_runtime.sql",
     "0004_ai_remediation.sql",
     "0005_ml_priority_assessment.sql",
+    "0006_uipath_attended_execution.sql",
 )
 
 # Statement timeout applied to every session so a pathological query cannot

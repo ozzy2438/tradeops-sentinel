@@ -364,6 +364,78 @@ class RemediationStore:
         return [dict(row) for row in rows]
 
     # ------------------------------------------------------------------
+    # attended UiPath evidence (append-only event stream)
+    # ------------------------------------------------------------------
+    def insert_uipath_event(
+        self,
+        *,
+        run_id: str,
+        case_id: str,
+        event_type: str,
+        project_name: str,
+        robot_reference: str | None = None,
+        token_digest: str | None = None,
+        expires_at: datetime | None = None,
+        outcome: str | None = None,
+        detail: str | None = None,
+        read_back_value: str | None = None,
+        applied: bool | None = None,
+    ) -> None:
+        with self._adapter.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO uipath_execution_events (
+                    run_id, case_id, event_type, token_digest, expires_at,
+                    project_name, execution_mode, robot_reference, outcome,
+                    detail, read_back_value, applied
+                ) VALUES (%s, %s, %s, %s, %s, %s,
+                          'ATTENDED_COMMUNITY', %s, %s, %s, %s, %s)
+                """,
+                (
+                    run_id,
+                    case_id,
+                    event_type,
+                    token_digest,
+                    expires_at,
+                    project_name,
+                    robot_reference,
+                    outcome,
+                    detail,
+                    read_back_value,
+                    applied,
+                ),
+            )
+            connection.commit()
+
+    def get_uipath_prepared_run(self, run_id: str) -> dict[str, Any] | None:
+        with self._adapter.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT run_id, case_id, token_digest, expires_at, project_name,
+                       execution_mode, occurred_at
+                FROM uipath_execution_events
+                WHERE run_id = %s AND event_type = 'PREPARED'
+                """,
+                (run_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_uipath_events(self, case_id: str) -> list[dict[str, Any]]:
+        with self._adapter.connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT run_id, case_id, event_type, expires_at, project_name,
+                       execution_mode, robot_reference, outcome, detail,
+                       read_back_value, applied, occurred_at
+                FROM uipath_execution_events
+                WHERE case_id = %s
+                ORDER BY occurred_at, event_id
+                """,
+                (case_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    # ------------------------------------------------------------------
     # evidence (insert-only, one frozen snapshot per case)
     # ------------------------------------------------------------------
     def insert_evidence_if_absent(

@@ -248,6 +248,11 @@ def test_fresh_install_applies_all_migrations_and_creates_expected_objects() -> 
         index_definition = _canonical_current_index_def(connection)
         assert index_definition is not None
         assert "(tenant_id, portfolio_id, trade_id, canonical_state_version" in index_definition
+        assert _trigger_names(connection, "uipath_execution_events") == [
+            "uipath_execution_events_no_delete",
+            "uipath_execution_events_no_truncate",
+            "uipath_execution_events_no_update",
+        ]
 
 
 def test_upgrade_from_0001_only_to_0002_migrates_legacy_schema() -> None:

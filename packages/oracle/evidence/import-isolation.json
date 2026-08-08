@@ -275,7 +275,8 @@
     "packages.remediation.policy",
     "packages.remediation.retrieval",
     "packages.remediation.store",
-    "packages.remediation.triage"
+    "packages.remediation.triage",
+    "packages.remediation.uipath"
   ],
   "oracle_prefix": "packages.oracle",
   "oracle_to_reconciliation_paths": [],
