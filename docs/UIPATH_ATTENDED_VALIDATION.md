@@ -2,14 +2,14 @@
 
 ## Result
 
-**Status: pending activation of the official UiPath Studio Web Chrome
-extension and one attended debug run on 2026-08-08.**
+**Status: pending one UiPath Studio Web attended debug run on 2026-08-08.**
 
-The repository implementation and PostgreSQL end-to-end boundary are already
-validated locally. macOS Accessibility is enabled for UiPath Assistant. This
-record must not be changed to `live-validated` until UiPath Studio
-Web/Assistant itself clicks the target and the resulting append-only events
-and post-action reconciliation are read back.
+The official UiPath Studio Web Chrome extension is enabled and macOS
+Accessibility is enabled for UiPath Assistant. The repository implementation
+and PostgreSQL end-to-end boundary are already validated locally. This record
+must not be changed to `live-validated` until UiPath Studio Web/Assistant
+itself clicks the target and the resulting append-only events and post-action
+reconciliation are read back.
 
 ## Intended bounded run
 
